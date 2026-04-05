@@ -1,14 +1,19 @@
 using Azure.Identity;
 using Azure.Messaging.EventHubs;
-using Azure.Messaging.EventHubs.Processor;
 using Azure.Storage.Blobs;
+using Microsoft.EntityFrameworkCore;
+using SentinelBackend.Infrastructure.Persistence;
 using SentinelBackend.Ingestion;
 
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Configuration.AddAzureKeyVault(
-    new Uri("https://sentinel-key-vault-dev.vault.azure.net/"),
-    new DefaultAzureCredential());
+    new Uri(
+        builder.Configuration["KeyVaultUrl"]
+            ?? throw new InvalidOperationException("KeyVaultUrl is not configured.")
+    ),
+    new DefaultAzureCredential()
+);
 
 var blobClient = new BlobContainerClient(
     builder.Configuration["StorageConnectionString"],
@@ -20,6 +25,14 @@ var processor = new EventProcessorClient(
     builder.Configuration["IoTHubEventHubConnectionString"]);
 
 builder.Services.AddSingleton(processor);
+
+builder.Services.AddDbContext<SentinelDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration["SqlConnectionString"],
+        o => o.EnableRetryOnFailure()
+    )
+);
+
 builder.Services.AddHostedService<TelemetryIngestionWorker>();
 
 var host = builder.Build();
