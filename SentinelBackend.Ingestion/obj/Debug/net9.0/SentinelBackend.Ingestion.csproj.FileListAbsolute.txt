@@ -109,3 +109,6 @@ C:\Users\rashi\source\repos\SentinelBackend\SentinelBackend.Ingestion\obj\Debug\
 C:\Users\rashi\source\repos\SentinelBackend\SentinelBackend.Ingestion\obj\Debug\net9.0\SentinelBackend.Ingestion.pdb
 C:\Users\rashi\source\repos\SentinelBackend\SentinelBackend.Ingestion\obj\Debug\net9.0\SentinelBackend.Ingestion.genruntimeconfig.cache
 C:\Users\rashi\source\repos\SentinelBackend\SentinelBackend.Ingestion\obj\Debug\net9.0\ref\SentinelBackend.Ingestion.dll
+C:\Users\rashi\source\repos\SentinelBackend\SentinelBackend.Ingestion\bin\Debug\net9.0\Microsoft.Azure.Devices.Provisioning.Service.dll
+C:\Users\rashi\source\repos\SentinelBackend\SentinelBackend.Ingestion\bin\Debug\net9.0\Microsoft.Azure.Devices.Shared.dll
+C:\Users\rashi\source\repos\SentinelBackend\SentinelBackend.Ingestion\bin\Debug\net9.0\Newtonsoft.Json.dll

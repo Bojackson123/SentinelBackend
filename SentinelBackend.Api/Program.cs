@@ -1,7 +1,6 @@
 using Azure.Identity;
-using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
-using SentinelBackend.Infrastructure.Persistence;
+using SentinelBackend.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,13 +14,7 @@ builder.Configuration.AddAzureKeyVault(
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-
-builder.Services.AddDbContext<SentinelDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration["SqlConnectionString"],
-        o => o.EnableRetryOnFailure()
-    )
-);
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 

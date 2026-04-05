@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SentinelBackend.Application")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7e3c09363069eeb86d726ff9028c9cc5646c4f7d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8d7980b5f32f66ca65d54585625ad4ec66bf50f9")]
 [assembly: System.Reflection.AssemblyProductAttribute("SentinelBackend.Application")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SentinelBackend.Application")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

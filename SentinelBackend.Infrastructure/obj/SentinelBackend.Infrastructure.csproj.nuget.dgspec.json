@@ -115,6 +115,10 @@
               "target": "Package",
               "version": "[4.9.0, )"
             },
+            "Microsoft.Azure.Devices.Provisioning.Service": {
+              "target": "Package",
+              "version": "[1.18.4, )"
+            },
             "Microsoft.EntityFrameworkCore.Design": {
               "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
               "suppressParent": "All",
