@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SentinelBackend.Domain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7e3c09363069eeb86d726ff9028c9cc5646c4f7d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+48b977490cc73c238cad7c136ee331e4a00da16e")]
 [assembly: System.Reflection.AssemblyProductAttribute("SentinelBackend.Domain")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SentinelBackend.Domain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
