@@ -4,7 +4,13 @@ using Microsoft.Azure.Devices.Provisioning.Service;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using SentinelBackend.Application.Dps;
+using SentinelBackend.Application.Interfaces;
+using SentinelBackend.Application.Services;
+using SentinelBackend.Infrastructure.Dps;
 using SentinelBackend.Infrastructure.Persistence;
+using SentinelBackend.Infrastructure.Repositories;
 
 public static class DependencyInjection
 {
@@ -32,6 +38,16 @@ public static class DependencyInjection
                 );
             return ProvisioningServiceClient.CreateFromConnectionString(connectionString);
         });
+
+        services.Configure<DpsOptions>(opts =>
+        {
+            opts.IotHubHostName = configuration["DpsIotHubHostName"] ?? string.Empty;
+            opts.EnrollmentGroupPrimaryKey = configuration["DpsEnrollmentPrimaryKey"] ?? string.Empty;
+            opts.WebhookSecret = configuration["DpsWebhookSecret"] ?? string.Empty;
+        });
+        services.AddScoped<IDpsEnrollmentService, DpsEnrollmentService>();
+        services.AddScoped<IDpsAllocationService, DpsAllocationService>();
+        services.AddScoped<IDeviceRepository, DeviceRepository>();
 
         return services;
     }

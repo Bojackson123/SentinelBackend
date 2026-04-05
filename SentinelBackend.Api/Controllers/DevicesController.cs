@@ -22,10 +22,11 @@ public class DevicesController : ControllerBase
         CancellationToken cancellationToken
     )
     {
-        var state = await _db.LatestDeviceStates.FirstOrDefaultAsync(
-            s => s.DeviceId == deviceId,
-            cancellationToken
-        );
+        var device = await _db.Devices
+            .Include(d => d.LatestState)
+            .FirstOrDefaultAsync(d => d.DeviceId == deviceId, cancellationToken);
+
+        var state = device?.LatestState;
 
         if (state is null)
             return NotFound();
@@ -33,7 +34,7 @@ public class DevicesController : ControllerBase
         return Ok(
             new DeviceStateResponse
             {
-                DeviceId = state.DeviceId,
+                DeviceId = deviceId,
                 LastSeenAt = state.LastSeenAt,
                 PanelVoltage = state.PanelVoltage,
                 PumpCurrent = state.PumpCurrent,

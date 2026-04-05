@@ -9,14 +9,21 @@ public class SentinelDbContextFactory : IDesignTimeDbContextFactory<SentinelDbCo
 {
     public SentinelDbContext CreateDbContext(string[] args)
     {
-        var kvUrl = Environment.GetEnvironmentVariable("KeyVaultUrl")
-            ?? throw new InvalidOperationException("KeyVaultUrl environment variable is not set.");
+        // Allow a direct connection string override for local/design-time usage (e.g. running migrations).
+        // Set EF_CONNECTION_STRING in your shell before running dotnet ef commands.
+        var connectionString = Environment.GetEnvironmentVariable("EF_CONNECTION_STRING");
 
-        var client = new SecretClient(new Uri(kvUrl), new DefaultAzureCredential());
+        if (connectionString is null)
+        {
+            var kvUrl = Environment.GetEnvironmentVariable("KeyVaultUrl")
+                ?? throw new InvalidOperationException("KeyVaultUrl environment variable is not set.");
 
-        var connectionString = client
-            .GetSecret("SqlConnectionString")
-            .Value.Value;
+            var client = new SecretClient(new Uri(kvUrl), new DefaultAzureCredential());
+
+            connectionString = client
+                .GetSecret("SqlConnectionString")
+                .Value.Value;
+        }
 
         var options = new DbContextOptionsBuilder<SentinelDbContext>()
             .UseSqlServer(connectionString, o => o.EnableRetryOnFailure())

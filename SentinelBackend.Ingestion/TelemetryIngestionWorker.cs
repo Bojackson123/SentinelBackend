@@ -8,6 +8,7 @@ using SentinelBackend.Contracts;
 using SentinelBackend.Domain.Entities;
 using SentinelBackend.Infrastructure.Persistence;
 using Azure.Messaging.EventHubs;
+using SentinelBackend.Domain.Enums;
 
 public class TelemetryIngestionWorker : BackgroundService
 {
@@ -73,17 +74,17 @@ public class TelemetryIngestionWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SentinelDbContext>();
 
-        // Upsert device
-        var device = await db.Devices.FirstOrDefaultAsync(
-            d => d.DeviceId == message.DeviceId
-        );
+        // Upsert device (include LatestState so we can upsert it in the same SaveChanges)
+        var device = await db.Devices
+            .Include(d => d.LatestState)
+            .FirstOrDefaultAsync(d => d.DeviceId == message.DeviceId);
 
         if (device is null)
         {
             device = new Device
             {
                 DeviceId = message.DeviceId,
-                Status = "active",
+                Status = DeviceStatus.Unprovisioned,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
             };
@@ -94,14 +95,12 @@ public class TelemetryIngestionWorker : BackgroundService
             device.UpdatedAt = DateTime.UtcNow;
         }
 
-        // Upsert latest state
-        var state = await db.LatestDeviceStates.FirstOrDefaultAsync(
-            s => s.DeviceId == message.DeviceId
-        );
-
+        // Upsert latest state via navigation — EF Core resolves Device.Id FK automatically
+        var state = device.LatestState;
         if (state is null)
         {
-            state = new LatestDeviceState { DeviceId = message.DeviceId };
+            state = new LatestDeviceState();
+            device.LatestState = state;
             db.LatestDeviceStates.Add(state);
         }
 

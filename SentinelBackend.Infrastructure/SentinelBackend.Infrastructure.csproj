@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SentinelBackend.Domain\SentinelBackend.Domain.csproj" />
+    <ProjectReference Include="..\SentinelBackend.Application\SentinelBackend.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -13,6 +14,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.14" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.5" />
   </ItemGroup>
 
   <PropertyGroup>
