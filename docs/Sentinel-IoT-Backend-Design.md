@@ -259,26 +259,28 @@ Used for:
 
 Application Database
 
+Core responsibilities:
 
-Suggested options:
+- Store latest device state (LatestDeviceState table for UI dashboards)
 
+- Store historical telemetry with 90-day hot retention (TelemetryHistory)
 
-- Azure SQL
+- Store alarms and events with lifecycle tracking
 
-- Azure Database for PostgreSQL
+- Store metadata (tenant/customer/site/device inventory)
 
-Used for:
+Database commitment:
 
+Primary operational database for Phase 1–2: Azure SQL.
 
-- latest device state
+Azure SQL provides native support for EF Core migrations, high availability, automated backups, and strong Azure integration. PostgreSQL + TimescaleDB evaluation is deferred to Phase 4 if time-series scaling becomes a scaling bottleneck.
 
-- historical telemetry
+Key tables (with soft deletes):
 
-- alarms and events
-
-- customer/site metadata
-
-- device inventory for application use
+- Devices, Sites, Customers, Companies, Subscriptions all support soft deletes (deleted_at nullable column).
+- TelemetryHistory (required composite index on device_id, timestamp_utc).
+- LatestDeviceState (updated with upsert on newer-timestamp-wins rule).
+- Alarms (includes acknowledged_at, silenced_until fields for multi-path clearing).
 
 ASP.NET Core API
 
@@ -505,13 +507,16 @@ Example Telemetry Payload
 	  "timestampUtc": "2026-04-05T00:00:00Z",
 	  "panelVoltage": 240.5,
 	  "pumpCurrent": 8.3,
-	  "cycleCount": 1821,
+	  "pumpRunning": true,
+	  "pump_start_event": false,
 	  "runtimeSeconds": 46,
 	  "highWaterAlarm": false,
 	  "temperatureC": 31.2,
 	  "signalRssi": -73,
 	  "firmwareVersion": "1.2.0"
 	}
+
+Note: cycleCount field has been removed from the schema. Cycle counting is backend-authoritative and derived from pump_start_event signals, not from device-reported values. This prevents edge-case handling for device counter resets or firmware updates and keeps the backend as the single source of truth for device life cycle events.
 
 Suggested application properties
 
@@ -762,13 +767,17 @@ Fields:
 
 - site_id
 
-- hardware_revision
+- hardware_revision (manufacturing record is authoritative; device twin reported property should match)
 
 - firmware_version
+
+- iot_hub_hostname (NEW: tracks which IoT Hub device is registered to, for migration readiness)
 
 - installed_at
 
 - status
+
+- deleted_at (NEW: soft delete timestamp, nullable)
 
 - created_at
 
@@ -798,7 +807,7 @@ Fields:
 
 - runtime_seconds
 
-- cycle_count
+- firmware_version (NEW: enables fast current-version lookup without querying history)
 
 - last_fault_code
 
@@ -838,17 +847,29 @@ Fields:
 
 - device_id
 
-- alarm_type
+- alarm_type (FK → AlarmTypes; constrained choices: high_water, pump_overload, sensor_failure, panel_power_loss, communication_fault, enclosure_intrusion)
 
-- severity
+- severity (computed: high_water always critical; other types default to warning/error, configurable per tenant in future phases)
 
 - started_at
 
-- cleared_at
+- cleared_at (nullable; null while active)
 
-- is_active
+- is_active (boolean; synced with cleared_at)
+
+- acknowledged_at (NEW: timestamp when operator or user acknowledged the alarm)
+
+- acknowledged_by_user_id (NEW: FK → ApplicationUser)
+
+- silenced_at (NEW: timestamp when user suppressed notifications)
+
+- silenced_by_user_id (NEW: FK → ApplicationUser)
+
+- silenced_until (NEW: datetime; silence persists until alarm clears or this time is reached)
 
 - details_json
+
+- deleted_at (NEW: soft delete, nullable)
 
 Sites
 
@@ -872,6 +893,8 @@ Fields:
 
 - longitude
 
+- deleted_at (NEW: soft delete, nullable)
+
 Customers
 
 
@@ -886,7 +909,57 @@ Fields:
 
 - contact_info
 
+- deleted_at (NEW: soft delete, nullable; when set, devices become orphaned, Lead is created)
+
 - created_at
+
+
+AlarmTypes (NEW lookup table)
+
+
+Constrains alarm types and provides defaults.
+
+Fields:
+
+
+- id (PK)
+
+- name (high_water, pump_overload, sensor_failure, panel_power_loss, communication_fault, enclosure_intrusion)
+
+- default_severity (critical, error, warning)
+
+- created_at
+
+Usage: Alarms.alarm_type is a FK to this table, ensuring type safety and enabling indexed filtering.
+
+
+CommandLog (NEW audit table)
+
+
+Persists all remote commands for audit and operational tracking.
+
+Fields:
+
+
+- id (PK)
+
+- initiated_by_user_id (FK → ApplicationUser; who triggered the command)
+
+- target_device_id (FK → Device; which device)
+
+- command_type (string: reboot, ping, clear_fault, run_self_test, sync_now, etc.)
+
+- sent_at (datetime UTC; when command was dispatched)
+
+- status (pending, success, failed)
+
+- result_details (JSON, optional; error messages or return payload)
+
+- completed_at (datetime, nullable)
+
+- created_at
+
+Usage: Supplements Application Insights for queryable command history via API without accessing log infrastructure.
 
 
 ---
@@ -1035,7 +1108,87 @@ Key package:
 
 ---
 
-Scalability Considerations
+Telemetry History Storage & Scaling
+
+Hot storage retention:
+
+All telemetry is stored in TelemetryHistory table in Azure SQL for 90 days (hot storage). After 90 days, data should be archived to Blob Storage or Data Lake for long-term access and ML training.
+
+Indexing strategy (REQUIRED for performance):
+
+Add a composite index on TelemetryHistory:
+
+	CREATE INDEX idx_telemetry_device_timestamp
+	ON TelemetryHistory (device_id, timestamp_utc DESC)
+	INCLUDE (payload_json, message_type);
+
+This index enables efficient queries like "telemetry for device X in last 30 days" and supports quick pagination.
+
+Deduplication strategy:
+
+IoT Hub guarantees at-least-once delivery, so duplicate messages arrive. To handle duplicates:
+
+Strategy: Unique key on (device_id, timestamp_utc, message_id) with upsert semantics.
+
+Implementation:
+
+	-- If duplicate arrives with same key, update the row (last-write-wins for message_id + timestamp combos)
+	INSERT INTO TelemetryHistory (device_id, timestamp_utc, message_id, payload_json, received_at)
+	VALUES (@device_id, @timestamp_utc, @message_id, @payload_json, @received_at)
+	ON DUPLICATE KEY UPDATE
+	  received_at = NOW(),
+	  payload_json = @payload_json;
+
+Prevents duplicate rows in history and keeps accurate received_at timestamps.
+
+Future archival plan (Phase 4):
+
+Define and implement a tiered storage strategy: hot (SQL, 90 days) → warm (Blob Archive tier) → cold (Data Lake, indefinitely). This plan ensures ML training data is retained without unbounded growth in the operational query database.
+
+PostgreSQL + TimescaleDB evaluation:
+
+TimescaleDB provides time-series optimizations and automatic data retention policies. Defer evaluation to Phase 4 if SQL scaling becomes a bottleneck.
+
+---
+
+Ingestion Worker Reliability & Concurrency
+
+Deduplication at LatestDeviceState:
+
+LatestDeviceState upsert must be safe for concurrent writes from multiple worker instances processing the same device. Use timestamp-based upsert:
+
+	UPDATE LatestDeviceState SET
+	  panel_voltage = @panel_voltage,
+	  pump_current = @pump_current,
+	  firmware_version = @firmware_version,
+	  updated_at = NOW()
+	WHERE device_id = @device_id
+	  AND @timestamp_utc > updated_at;
+
+This ensures only newer messages overwrite stale data, preventing race conditions.
+
+Idempotency & checkpointing:
+
+- Every telemetry message processed should trigger a checkpoint in Event Hubs after successful persistence.
+- If a message fails (schema mismatch, parse error), log to dead-letter and checkpoint anyway to avoid replay loops.
+- The combination of unique key dedup (TelemetryHistory) and checkpoint ensures the system can tolerate retries and pod restarts.
+
+Validation & error handling:
+
+- Validate schemaVersion in every message; reject unknown schemas.
+- Parse failures → dead-letter queue.
+- Database failures → exponential backoff, retry up to N times, then dead-letter.
+- Poison messages (malformed JSON, missing device_id) → dead-letter with diagnostic log.
+
+Cycle counting (backend authoritative):
+
+- Cycle count is NOT derived from device-reported cycleCount (removed from schema).
+- Backend counts from pump_start_event signals in incoming telemetry.
+- When pump_running transitions from false → true, increment device cycle counter in application state.
+- Anomaly: if pump_running immediately transitions back to false (fluttering), track as diagnostic but do not double-increment cycle count.
+- Store derived cycle count in a DeviceCycleCounter table or LatestDeviceState.lifecycle_cycle_count for UI display.
+
+---
 
 1. Start with DPS
 
@@ -1232,41 +1385,245 @@ Every remote command should be logged with:
 
 ---
 
-Example API Surface
+Example API Surface (v1)
+
+All endpoints are versioned with `/api/v1/` prefix from the first deployment to support future clients.
 
 Device endpoints
 
-- GET /api/devices
+- GET /api/v1/devices
 
-- GET /api/devices/{deviceId}
+- GET /api/v1/devices/{deviceId}
 
-- GET /api/devices/{deviceId}/state
+- GET /api/v1/devices/{deviceId}/state
 
-- GET /api/devices/{deviceId}/telemetry
+- GET /api/v1/devices/{deviceId}/telemetry
 
-- GET /api/devices/{deviceId}/alarms
+- GET /api/v1/devices/{deviceId}/alarms
+
+Alarm endpoints
+
+- POST /api/v1/alarms/{alarmId}/acknowledge
+
+- POST /api/v1/alarms/{alarmId}/silence
+
+- POST /api/v1/alarms/{alarmId}/clear
 
 Configuration endpoints
 
-- PATCH /api/devices/{deviceId}/desired-properties
+- PATCH /api/v1/devices/{deviceId}/desired-properties
 
-Command endpoints
+Command endpoints (all require JWT token)
 
-- POST /api/devices/{deviceId}/commands/reboot
+- POST /api/v1/devices/{deviceId}/commands/reboot
 
-- POST /api/devices/{deviceId}/commands/ping
+- POST /api/v1/devices/{deviceId}/commands/ping
 
-- POST /api/devices/{deviceId}/commands/clear-fault
+- POST /api/v1/devices/{deviceId}/commands/clear-fault
 
-Administrative endpoints
+Administrative endpoints (role-based access)
 
-- POST /api/devices/register
+- POST /api/v1/devices/register
 
-- POST /api/devices/provisioning/enrollment
+- POST /api/v1/devices/provisioning/enrollment
 
-- GET /api/sites
+- GET /api/v1/sites
 
-- GET /api/customers
+- GET /api/v1/customers
+
+
+---
+
+Alarm Detection & Routing (Primary Model: Option A)
+
+Devices send dedicated alarm messages for immediate routing and processing.
+
+Device behavior:
+
+When a device detects a fault condition (for example, high water level), it sends a separate alarm message with IoT Hub application properties:
+
+	messageType=alarm
+	alarmType=high_water
+	severity=critical
+	schemaVersion=1
+
+The alarm message body contains minimal details:
+
+	{
+	  "deviceId": "pump-00123",
+	  "alarmType": "high_water",
+	  "timestampUtc": "2026-04-05T12:34:56Z",
+	  "details": { "waterLevelCm": 47 }
+	}
+
+Regular telemetry messages continue to include state fields (highWaterAlarm: true/false) for ongoing state tracking and dashboards, even if a dedicated alarm was already sent.
+
+IoT Hub routing:
+
+IoT Hub message routing rules forward alarm messages (messageType=alarm) to Azure Service Bus for immediate, decoupled processing.
+
+Routing rule example:
+
+	Name: AlarmRoute
+	Source: Device Messages
+	Condition: messageType = 'alarm'
+	Endpoint: Service Bus Queue (alarms)
+	Enabled: true
+
+Backend processing:
+
+The Alarm Processor consumes from Service Bus, deserializes the alarm, validates against AlarmTypes lookup table, and creates or updates the Alarms table entry with started_at, severity, and is_active=true.
+
+
+Alarm Lifecycle: Multi-Path Clearing
+
+Alarms can be cleared through three independent mechanisms:
+
+1. Auto-clear from device signal:
+
+When the device detects the fault has resolved (water level drops), it sends highWaterAlarm: false in regular telemetry. The ingestion worker detects this state change and updates Alarms.is_active = false, cleared_at = now.
+
+2. Manual operator clear:
+
+An operator with appropriate role can call POST /api/v1/alarms/{alarmId}/clear to explicitly close the alarm regardless of device state. Useful for noise or false positives.
+
+3. Acknowledge (separate operation):
+
+An operator calls POST /api/v1/alarms/{alarmId}/acknowledge to mark acknowledged_at and acknowledged_by_user_id but does NOT close the alarm. Acknowledge is distinct from clear and primarily suppresses notifications.
+
+Silence behavior:
+
+- Silencing an alarm (POST /api/v1/alarms/{alarmId}/silence) suppresses all notifications until the alarm clears or the silence is manually lifted.
+
+- The alarm state (is_active) reflects device reality and is not affected by silence.
+
+- Silence persists across device state changes; clearing the alarm also clears the silence.
+
+
+Incident identity for notification deduplication:
+
+A single "incident" is opened when alarm transitions from inactive to active (started_at). That incident remains open until the alarm is cleared (cleared_at is set). One open incident per device + alarm_type at any given time.
+
+Notification resend deduplication uses the key: device_id + alarm_type + incident_id + recipient + channel. This prevents duplicate 30-minute resend notifications for the same alarm across different users or channels.
+
+
+---
+
+Notification Delivery Architecture
+
+Channels in Phase 3 (v1):
+
+- SMS (Twilio)
+
+- Push notifications (provider-agnostic, selected during ops setup)
+
+- Email (provider-agnostic, selected during ops setup)
+
+Escalation Policy:
+
+Company accounts:
+
+- Notify the company technical contact first.
+- If no acknowledgment within 24 hours, escalate to internal Sentinel ops team for follow-up call or on-site visit to the company or homeowner.
+
+Homeowner accounts:
+
+- Notify homeowner directly.
+- If unacknowledged after 24 hours, escalate to internal Sentinel ops team.
+
+Notification cadence:
+
+- Resend every 30 minutes while alarm is active and not silenced.
+- Deduplication key: device_id + alarm_type + incident_id + recipient + channel.
+- No duplicates if the same user already received the notification in the current resend window.
+
+Notification preferences:
+
+- Scope: Global per channel (SMS on/off, push on/off, email on/off), not per alarm type.
+- Applied tenant-wide to all alarms for that customer.
+- Users cannot opt out of specific alarm types; only entire channels.
+
+Escalation ticket:
+
+When 24-hour escalation is triggered, a CommandLog entry is created with command_type=escalation_triggered, initiated_by=system, and details capturing the alert that triggered it.
+
+
+---
+
+Subscription Lifecycle & Device Gating
+
+Subscription cancellation flow:
+
+Day 0 — Subscription expires or is cancelled:
+
+- Ingestion continues: backend keeps processing and storing telemetry from devices.
+- API/UI access remains functional.
+
+Day 1–7 — Restricted access window (grace period start):
+
+- Tenant loses all API and UI read access; the tenant cannot query their devices or historical data.
+- Ingestion continues; data is stored.
+- Only internal Sentinel techs can query the data via internal tools.
+
+Day 7 — Lead creation:
+
+- A Lead record is created for the lapsed customer with status=lead.
+- Devices and Sites owned by that customer are soft-deleted (deleted_at is set) but retained.
+- Devices transition to "orphaned" state (no active device assignment).
+
+Day 7–37 — Grace period (Lead recovery window):
+
+- Lead remains in grace state.
+- Customer can be reactivated and resubscribe; devices are re-linked and restored to Active status.
+- Internal ops can query and manage devices on behalf of former customer.
+- Device data ingestion continues.
+
+Day 37+ — Lead becomes sale-ready:
+
+- Lead transitions to ready_to_sell state (eligible for sales outreach).
+- Devices remain retained and queryable by internal ops.
+- Future reactivation requires sales/ops approval.
+
+IoT Hub device identity:
+
+- Device remains registered in IoT Hub throughout the cancellation and grace periods.
+- No immediate disable; device authentication remains valid to support graceful offboarding.
+- Ops can manually disable a device identity per-device if needed during grace period.
+
+Important: Ingestion continues because historical telemetry is valuable for ML training and diagnostics. Access is restricted, not data collection.
+
+
+---
+
+Device Lifecycle & Reassignment
+
+Reassignment workflow (atomic operation):
+
+When a device is physically moved to a new site or reassigned to a new customer:
+
+1. In a single database transaction:
+   - Close the current DeviceAssignment: unassigned_at = now, unassigned_by_user_id = current_user
+   - Open the new DeviceAssignment: assigned_at = now, assigned_by_user_id = current_user, to new site
+
+2. Device.status remains Active throughout (no state transition through Assigned or Unprovisioned).
+
+3. DeviceAssignments history table captures both the close and open for audit.
+
+Why atomic:
+
+- DeviceAssignments is the detailed source of truth; status transitions are unnecessary.
+- Reflects operational reality: pump doesn't become unassigned between sites.
+- Ingestion worker processes telemetry independently; no need to interpret intermediate states.
+- Query `SELECT * FROM DeviceAssignments WHERE device_id = X AND unassigned_at IS NULL` always gives current assignment.
+
+Soft-delete behavior for customers:
+
+When a Customer is soft-deleted (deleted_at is set):
+
+- All Devices and Sites owned by that customer are NOT hard-deleted.
+- Instead, devices become orphaned (no active DeviceAssignment).
+- A Lead is created for the customer (as described in Subscription Lifecycle section).
+- Ops workflow: none are automatically closed; ops team manually determines whether to keep, reactivate, or dispose of each device per business rules (logged in CommandLog for audit).
 
 
 ---
@@ -1285,7 +1642,7 @@ Phase 1: Foundation
 
 - expose basic read API
 
-Phase 2: Device management
+Phase 2: Device management and authentication
 
 - add DPS support
 
@@ -1295,13 +1652,25 @@ Phase 2: Device management
 
 - add direct method endpoints
 
-Phase 3: Alarms and workflows
+- require JWT authentication on all endpoints
 
-- route alarm messages to Service Bus
+- implement role-based authorization (Operator, Technician, Viewer)
+
+Phase 3: Alarms and notification delivery
+
+- route device alarm messages to Service Bus
+
+- create AlarmTypes lookup table and enforce type safety
 
 - create alarm processor
 
-- implement notification or escalation workflows
+- implement SMS, push, and email notification channels (Twilio, provider-agnostic push, provider-agnostic email)
+
+- implement 24-hour escalation policy (company tech or homeowner first, then Sentinel ops team)
+
+- implement 30-minute resend cadence with deduplication per device+type+recipient+channel
+
+- implement silence/acknowledge semantics (suppress notifications, preserve state)
 
 Phase 4: Frontend support
 
@@ -1370,9 +1739,9 @@ For this product, the recommended architecture is:
 
 - a .NET worker consumes telemetry from the Event Hubs-compatible endpoint
 
-- alarms are optionally routed to Service Bus for immediate processing
+- alarms are routed to Service Bus via IoT Hub message routing (messageType=alarm application properties)
 
-- processed data is stored in SQL or PostgreSQL
+- processed data is stored in Azure SQL (primary choice for Phase 1–2)
 
 - an ASP.NET Core API exposes device, alarm, and telemetry data
 
@@ -1390,22 +1759,49 @@ This architecture gives a clean separation of concerns and a good path to scale 
 Summary
 
 
-Azure IoT Hub should be used as the secure and scalable device communication layer, not as the full backend itself. The .NET backend should be split into:
-
 
 - an ingestion service for telemetry processing
-
 - an API service for business logic and UI support
-
 This provides:
 
 
-- better scale
 
-- cleaner design
 
-- easier operations
-
-- stronger security
 
 - a better long-term path as the number of devices grows
+
+For this product, the recommended architecture is:
+
+- Devices connect to Azure IoT Hub via DPS for secure, scalable provisioning and device identity.
+
+- Devices send telemetry messages (every N minutes) and dedicated alarm messages (on-demand) to IoT Hub using MQTT over TLS.
+
+- IoT Hub routes alarm messages (messageType=alarm) to Azure Service Bus via message routing rules for immediate processing; telemetry routes to the built-in Event Hubs endpoint for ingestion worker consumption.
+
+- A .NET ingestion worker consumes telemetry from the Event Hubs endpoint, deserializes, validates (schema version check, required fields), deduplicates (unique key on device_id + timestamp_utc + message_id), and persists to Azure SQL (LatestDeviceState and TelemetryHistory).
+
+- An Alarm Processor consumes from Service Bus, validates alarm type against AlarmTypes lookup, creates or updates Alarms table, and triggers notification workflows.
+
+- Notification engine implements multi-channel delivery (SMS via Twilio, push and email provider-agnostic), 24-hour escalation policy, and 30-minute resend deduplication.
+
+- Processed data is stored in Azure SQL as the operational queryable database: Devices, LatestDeviceState, TelemetryHistory, Alarms, Sites, Customers, Commands, Leads.
+
+- An ASP.NET Core API exposes device, alarm, and telemetry data to the React frontend and internal dashboards, with JWT authentication and role-based authorization from Phase 2 onward.
+
+- Device configuration is managed through IoT Hub device twins (desired properties for backend-to-device config; reported properties for device state).
+
+- Remote operations (reboot, ping, clear fault) are handled through IoT Hub direct methods with audit logging in CommandLog.
+
+This architecture provides:
+
+- Clean separation of concerns (device gateway, ingestion, notification, business API).
+
+- Independent scaling (ingestion workers, API instances, notification processors scale independently).
+
+- Strong device security and identity model (DPS, per-device credentials, TLS).
+
+- Reliable event processing (checkpointing, deduplication, idempotency).
+
+- Tenant data isolation and soft-delete support for compliance and recovery.
+
+- A clear path to scale from pilot to production without redesigning the core infrastructure.
