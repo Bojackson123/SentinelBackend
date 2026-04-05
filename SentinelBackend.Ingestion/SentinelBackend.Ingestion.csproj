@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-SentinelBackend.Ingestion-e6a06907-0521-47f6-86eb-e5473d8e4f7a</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.0" />
+    <PackageReference Include="Azure.Identity" Version="1.20.0" />
+    <PackageReference Include="Azure.Messaging.EventHubs" Version="5.12.2" />
+    <PackageReference Include="Azure.Messaging.EventHubs.Processor" Version="5.12.2" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SentinelBackend.Infrastructure\SentinelBackend.Infrastructure.csproj" />
+    <ProjectReference Include="..\SentinelBackend.Domain\SentinelBackend.Domain.csproj" />
+    <ProjectReference Include="..\SentinelBackend.Contracts\SentinelBackend.Contracts.csproj" />
+  </ItemGroup>
+</Project>

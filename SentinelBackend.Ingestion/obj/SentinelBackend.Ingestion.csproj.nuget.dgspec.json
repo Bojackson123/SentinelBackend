@@ -1,0 +1,284 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Ingestion\\SentinelBackend.Ingestion.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Contracts\\SentinelBackend.Contracts.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Contracts\\SentinelBackend.Contracts.csproj",
+        "projectName": "SentinelBackend.Contracts",
+        "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Contracts\\SentinelBackend.Contracts.csproj",
+        "packagesPath": "C:\\Users\\rashi\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Contracts\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\rashi\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.312/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\SentinelBackend.Domain.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\SentinelBackend.Domain.csproj",
+        "projectName": "SentinelBackend.Domain",
+        "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\SentinelBackend.Domain.csproj",
+        "packagesPath": "C:\\Users\\rashi\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\rashi\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.312/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Infrastructure\\SentinelBackend.Infrastructure.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Infrastructure\\SentinelBackend.Infrastructure.csproj",
+        "projectName": "SentinelBackend.Infrastructure",
+        "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Infrastructure\\SentinelBackend.Infrastructure.csproj",
+        "packagesPath": "C:\\Users\\rashi\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Infrastructure\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\rashi\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\SentinelBackend.Domain.csproj": {
+                "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\SentinelBackend.Domain.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.312/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Ingestion\\SentinelBackend.Ingestion.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Ingestion\\SentinelBackend.Ingestion.csproj",
+        "projectName": "SentinelBackend.Ingestion",
+        "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Ingestion\\SentinelBackend.Ingestion.csproj",
+        "packagesPath": "C:\\Users\\rashi\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Ingestion\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\rashi\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Contracts\\SentinelBackend.Contracts.csproj": {
+                "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Contracts\\SentinelBackend.Contracts.csproj"
+              },
+              "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\SentinelBackend.Domain.csproj": {
+                "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Domain\\SentinelBackend.Domain.csproj"
+              },
+              "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Infrastructure\\SentinelBackend.Infrastructure.csproj": {
+                "projectPath": "C:\\Users\\rashi\\source\\repos\\SentinelBackend\\SentinelBackend.Infrastructure\\SentinelBackend.Infrastructure.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "Azure.Extensions.AspNetCore.Configuration.Secrets": {
+              "target": "Package",
+              "version": "[1.5.0, )"
+            },
+            "Azure.Identity": {
+              "target": "Package",
+              "version": "[1.20.0, )"
+            },
+            "Azure.Messaging.EventHubs": {
+              "target": "Package",
+              "version": "[5.12.2, )"
+            },
+            "Azure.Messaging.EventHubs.Processor": {
+              "target": "Package",
+              "version": "[5.12.2, )"
+            },
+            "Azure.Storage.Blobs": {
+              "target": "Package",
+              "version": "[12.27.0, )"
+            },
+            "Microsoft.Extensions.Hosting": {
+              "target": "Package",
+              "version": "[9.0.14, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.312/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}
