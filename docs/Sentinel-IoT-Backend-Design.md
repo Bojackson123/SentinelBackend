@@ -641,6 +641,16 @@ Example:
 	  "diagnosticsEnabled": false
 	}
 
+Twin update strategy:
+
+1. DPS initial twin — sets system-wide defaults at first boot (telemetryIntervalSeconds, diagnosticsEnabled, highWaterThreshold). These defaults apply to all devices uniformly.
+
+2. Tech assignment twin update — when a device is assigned to a site, the backend updates the twin with site-specific configuration (timezone from the Site record). This is the only twin update during the assignment flow.
+
+3. Ongoing twin updates — the API can update desired properties post-assignment to change telemetry interval, thresholds, or diagnostics for individual devices.
+
+Important: the Sentinel device is read-only with respect to the grinder pump hardware. Desired properties configure the Sentinel device's own behavior (reporting frequency, alarm thresholds for notification purposes, diagnostics). They do not control anything on the pump or control panel.
+
 Reported properties
 
 
@@ -998,6 +1008,21 @@ Fields:
 - created_at
 - updated_at
 
+ApplicationUser
+
+
+Represents all authenticated users of the platform. Extends ASP.NET Core IdentityUser for authentication and authorization. Links to domain entities (Company, Customer) for data scoping.
+
+Fields:
+
+- id (string, PK) — from IdentityUser
+- first_name
+- last_name
+- role (enum: InternalAdmin, InternalTech, CompanyAdmin, CompanyTech, HomeownerViewer)
+- company_id (FK → Companies, nullable) — set for CompanyAdmin and CompanyTech
+- customer_id (FK → Customers, nullable) — set for HomeownerViewer
+- all standard IdentityUser fields (email, phone, password hash, etc.)
+
 
 ---
 
@@ -1042,12 +1067,16 @@ A field technician installs the Sentinel device at a physical site.
 
 - Technician uses the app to claim the device by serial number
 - Backend validates the device is in Unprovisioned status
-- Technician selects or creates a Site and assigns the device to it
+- Technician selects an existing Site or creates a new one and assigns the device to it
+- Only technicians (internal or company) can create new Sites — homeowners cannot
+- Company technicians are scoped to their own organization and can only assign to sites under their company's customers
 - Device transitions Unprovisioned → Assigned
-- Backend writes desired properties to the IoT Hub twin (telemetry interval, thresholds, etc.)
+- Backend updates the device twin with site-specific configuration (timezone from the Site record)
 - A DeviceAssignment record is created linking the device to the site and customer
 
 The device is now linked to a site, which belongs to a customer (homeowner or plumbing company account).
+
+Note: domain business logic errors in the assignment flow use the Result<T> pattern rather than exceptions. Validation failures (e.g., invalid status transition, unauthorized scope) return typed error results.
 
 
 Stage 4: Active Operation
@@ -1125,6 +1154,61 @@ Used by individual homeowners subscribed directly to Sentinel:
 - View their own device's current state and telemetry history
 - Receive alarm notifications
 - Manage their subscription and account
+
+
+---
+
+Identity and Authentication
+
+
+The platform uses ASP.NET Core Identity for user management and authentication. All authenticated users are represented by an ApplicationUser entity that extends IdentityUser.
+
+User hierarchy (highest to lowest privilege):
+
+1. InternalAdmin — Sentinel staff with full system access (god mode)
+2. InternalTech — Sentinel field technicians who provision and install devices
+3. CompanyAdmin — Plumbing company administrators who manage their fleet
+4. CompanyTech — Plumbing company field technicians scoped to their org
+5. HomeownerViewer — Independent homeowners with read-only access to their own device
+
+Key rules:
+
+- Internal staff (InternalAdmin, InternalTech) have no CompanyId or CustomerId — they can operate across all tenants
+- CompanyAdmin and CompanyTech are always linked to a CompanyId — all data access is scoped to that company's customers and sites
+- HomeownerViewer is always linked to a CustomerId — data access is scoped to their own sites and devices
+- A Customer entity represents a homeowner record (both standalone and company-managed) — this is the domain record, not the login identity
+- The ApplicationUser entity is the login identity with optional FK links to Company and/or Customer
+- Company technicians can only create sites, assign devices, and view data within their own organization
+
+Authentication approach:
+
+- ASP.NET Core Identity with JWT bearer tokens
+- Role-based authorization using the UserRole enum
+- IdentityDbContext used as the base for the application database context
+- DeviceAssignment.AssignedByUserId references ApplicationUser.Id (string PK from Identity)
+
+
+---
+
+Error Handling Pattern
+
+
+Domain business logic uses a Result<T> pattern for expected failure cases. Exceptions are reserved for truly exceptional situations (infrastructure failures, programmer errors).
+
+The Result<T> type lives in the Domain project and is used by Application services. Controllers map error results to appropriate HTTP status codes.
+
+Examples of Result<T> usage:
+
+- Invalid device status transition → error result with typed reason
+- Unauthorized scope (company tech trying to access another org) → error result
+- Device not found by serial number → error result
+- Site validation failure → error result
+
+Examples of exceptions (kept for infrastructure concerns):
+
+- Database connection failure
+- Azure SDK transient faults
+- Configuration errors at startup
 
 
 ---
@@ -1531,25 +1615,38 @@ Phase 1: Foundation
 
 Phase 2: Device lifecycle and provisioning
 
-- implement DPS allocation webhook
+- ~~implement DPS allocation webhook~~ ✅ DONE
 
-- implement manufacturing batch service
+- ~~implement manufacturing batch service~~ ✅ DONE
 
-- add device status state machine (Manufactured → Unprovisioned → Assigned → Active → Decommissioned)
+- scaffold ASP.NET Core Identity with ApplicationUser entity (IdentityDbContext, UserRole, CompanyId/CustomerId links)
 
-- add tech assignment flow (claim device by serial number, create Site and DeviceAssignment)
+- add custom Result<T> type in Domain for domain error handling
 
-- implement device twins with initial configuration
+- align DeviceStatus enum with design doc: Manufactured → Unprovisioned → Assigned → Active → Decommissioned
+
+- add device status state machine with validated transitions using Result<T>
+
+- add tech assignment flow:
+  - claim device by serial number
+  - assign to existing Site or create new Site (tech-only)
+  - company techs scoped to their org's customers/sites
+  - create DeviceAssignment record
+  - update device twin with site timezone on assignment
+
+- update ingestion worker to transition Assigned → Active on first telemetry
 
 Phase 3: Multi-tenant model
 
-- add Company and Customer entities
+- ~~add Company and Customer entities~~ ✅ DONE (entities exist)
 
-- implement tenant-scoped data access
+- implement tenant-scoped data access (company techs see only their org)
 
 - add Subscription management and Stripe integration
 
-- add role-based access control for company admin vs. homeowner vs. internal admin
+- add JWT authentication middleware and role-based authorization policies
+
+- enforce authorization on all API endpoints
 
 Phase 4: Alarms and notifications
 

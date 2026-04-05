@@ -4,7 +4,6 @@ using Microsoft.Azure.Devices.Provisioning.Service;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using SentinelBackend.Application.Dps;
 using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Application.Services;
@@ -47,6 +46,7 @@ public static class DependencyInjection
         });
         services.AddScoped<IDpsEnrollmentService, DpsEnrollmentService>();
         services.AddScoped<IDpsAllocationService, DpsAllocationService>();
+        services.AddScoped<IManufacturingBatchService, ManufacturingBatchService>();
         services.AddScoped<IDeviceRepository, DeviceRepository>();
 
         return services;
