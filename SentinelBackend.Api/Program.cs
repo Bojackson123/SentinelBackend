@@ -60,6 +60,7 @@ builder.Services.AddAuthorizationBuilder()
         policy.RequireAuthenticatedUser());
 
 builder.Services.AddHostedService<CommandExecutorWorker>();
+builder.Services.AddHostedService<OfflineMonitorWorker>();
 
 var app = builder.Build();
 

@@ -41,6 +41,7 @@ ASP.NET Core Web API hosting:
 - REST controllers for devices, alarms, sites, assignments, manufacturing, DPS webhook, and auth
 - JWT Bearer authentication with role-based authorization policies
 - `CommandExecutorWorker` — a `BackgroundService` that polls for pending commands and executes IoT Hub direct methods
+- `OfflineMonitorWorker` — a `BackgroundService` that periodically scans device connectivity state and raises/resolves `DeviceOffline` alarms
 - Scalar API reference UI in development mode
 - Secrets loaded from Azure Key Vault via `DefaultAzureCredential`
 
@@ -91,6 +92,7 @@ All infrastructure services are registered in `Infrastructure/DependencyInjectio
 | `RegistryManager` | Singleton | IoT Hub twin management |
 | `ServiceClient` | Singleton | IoT Hub direct method invocation |
 | `IDeviceRepository` → `DeviceRepository` | Scoped | Device data access |
+| `IAlarmService` → `AlarmService` | Scoped | Alarm creation (with dedup), resolution, auto-resolve |
 | `IDeviceTwinService` → `DeviceTwinService` | Scoped | Twin desired property updates |
 | `IDirectMethodService` → `DirectMethodService` | Scoped | Direct method invocation |
 | `IDpsEnrollmentService` → `DpsEnrollmentService` | Scoped | DPS key derivation |

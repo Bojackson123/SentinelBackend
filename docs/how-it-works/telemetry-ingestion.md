@@ -102,7 +102,15 @@ If `messageType == "lifecycle"` and `BootId` is present, `connectivity.LastBootI
 **Firmware version:**
 If the message contains a non-empty `FirmwareVersion`, `device.FirmwareVersion` is updated (any message type).
 
-### 11. Checkpoint
+### 11. Telemetry-Fallback Alarm Detection (Phase 5)
+After persisting telemetry, the worker evaluates alarm conditions for `messageType == "telemetry"`:
+
+- **HighWaterAlarm == true**: Raises a `HighWater` alarm via `IAlarmService.RaiseAlarmAsync()` with `AlarmSourceType.TelemetryFallback`. Duplicate active incidents are automatically suppressed.
+- **HighWaterAlarm == false**: Auto-resolves any active `HighWater` alarms for the device via `IAlarmService.AutoResolveAlarmsAsync()`.
+
+Alarm evaluation failures are logged but do **not** block telemetry processing — the telemetry row is already persisted at this point.
+
+### 12. Checkpoint
 After successful processing (or after recording a failure), `UpdateCheckpointAsync()` is called to advance the consumer's position in the partition.
 
 ## TelemetryMessage Contract

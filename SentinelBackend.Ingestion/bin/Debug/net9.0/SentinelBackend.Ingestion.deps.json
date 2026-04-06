@@ -15,6 +15,7 @@
           "Azure.Storage.Blobs": "12.27.0",
           "Microsoft.EntityFrameworkCore": "9.0.14",
           "Microsoft.Extensions.Hosting": "9.0.14",
+          "SentinelBackend.Application": "1.0.0",
           "SentinelBackend.Contracts": "1.0.0",
           "SentinelBackend.Domain": "1.0.0",
           "SentinelBackend.Infrastructure": "1.0.0"

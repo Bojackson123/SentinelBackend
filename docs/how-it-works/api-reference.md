@@ -223,6 +223,14 @@ Suppress an alarm with a reason.
 **Request body:** `{ "reason": "Scheduled maintenance" }`  
 **Error:** `400` if alarm is already Resolved or Suppressed.
 
+### POST /api/alarms/{alarmId}/resolve
+Manually resolve an alarm.
+
+**Auth:** AllAuthenticated  
+**Request body:** `{ "reason": "Issue fixed on-site" }` (optional)  
+**Response:** `200 OK` — `{ "id": 1, "status": "Resolved" }`  
+**Error:** `400` if alarm is already Resolved.
+
 ### GET /api/alarms/{alarmId}/events
 Get the event history for an alarm (ordered chronologically).
 

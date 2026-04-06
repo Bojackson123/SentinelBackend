@@ -6,6 +6,7 @@ using Azure.Messaging.EventHubs;
 using Azure.Messaging.EventHubs.Processor;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
+using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Contracts;
 using SentinelBackend.Domain.Entities;
 using SentinelBackend.Domain.Enums;
@@ -289,6 +290,41 @@ public class TelemetryIngestionWorker : BackgroundService
         device.UpdatedAt = receivedAtUtc;
 
         await db.SaveChangesAsync();
+
+        // ── Telemetry-fallback alarm detection ───────────────────
+        // After persisting telemetry, evaluate alarm conditions.
+        // HighWaterAlarm is the primary fallback alarm for Phase 5.
+        if (messageType == "telemetry")
+        {
+            try
+            {
+                var alarmService = scope.ServiceProvider.GetRequiredService<IAlarmService>();
+
+                if (message.HighWaterAlarm == true)
+                {
+                    await alarmService.RaiseAlarmAsync(
+                        device.Id,
+                        "HighWater",
+                        AlarmSeverity.Critical,
+                        AlarmSourceType.TelemetryFallback,
+                        triggerMessageId: message.MessageId);
+                }
+                else if (message.HighWaterAlarm == false)
+                {
+                    // Condition cleared — auto-resolve any active HighWater alarms
+                    await alarmService.AutoResolveAlarmsAsync(
+                        device.Id,
+                        "HighWater",
+                        "Auto-resolved: high water condition cleared");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to evaluate alarm conditions for device {DeviceId} message {MessageId} — telemetry already persisted",
+                    deviceId, message.MessageId);
+            }
+        }
 
         _logger.LogInformation(
             "Processed {MessageType} {MessageId} for device {DeviceId}",

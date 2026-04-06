@@ -2,14 +2,14 @@
 
 ## Overview
 
-The solution has **91 unit tests** across **13 test files** in two test projects, plus a shared infrastructure project.
+The solution has **116 unit tests** across **15 test files** in two test projects, plus a shared infrastructure project.
 
 ## Test Projects
 
 | Project | Target | Tests |
 |---------|--------|------:|
-| `SentinelBackend.Api.Tests` | API controllers, services, domain logic | 72 |
-| `SentinelBackend.Ingestion.Tests` | Telemetry ingestion worker | 15 |
+| `SentinelBackend.Api.Tests` | API controllers, services, domain logic | 90 |
+| `SentinelBackend.Ingestion.Tests` | Telemetry ingestion worker, alarm detection | 22 |
 | `SentinelBackend.Tests.Shared` | Shared helpers (no tests) | — |
 
 All tests use **xUnit** with `[Fact]` attributes.
@@ -61,10 +61,13 @@ Test implementation of `ITenantContext` with the same `ApplyScope` logic as `Htt
 | `ConnectivityStateTests.cs` | 5 | Connectivity tracking on telemetry, connectivity tracking on lifecycle, IsOffline reset, first-telemetry activation (Assigned → Active) |
 | `TenantScopingTests.cs` | 9 | Device scoping (internal/company/homeowner), alarm scoping, site scoping, telemetry history scoping, cross-tenant isolation, zero-results for mismatched tenant |
 
-### Phase 3 — Alarms
+### Phase 3–5 — Alarms
 | File | Tests | Coverage |
 |------|------:|----------|
 | `AlarmWorkflowTests.cs` | 7 | Alarm creation, acknowledge transition, suppress with reason, resolve, event history recording, invalid transition rejection |
+| `AlarmServiceTests.cs` | 13 | AlarmService: raise with dedup suppression, ownership snapshot, resolve, auto-resolve, alarm lifecycle cycles, trigger message storage |
+| `OfflineMonitorTests.cs` | 5 | Offline threshold detection, alarm raising, auto-resolve on reconnect, duplicate suppression, maintenance window suppression, Active-only filtering |
+| `TelemetryAlarmTests.cs` | 7 | Telemetry-fallback alarm detection: HighWater raise/auto-resolve, duplicate suppression, alarm cycling, ownership snapshot population |
 
 ### Phase 4 — Commands & Configuration
 | File | Tests | Coverage |

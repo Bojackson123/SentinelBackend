@@ -2,6 +2,8 @@ using Azure.Identity;
 using Azure.Messaging.EventHubs;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
+using SentinelBackend.Application.Interfaces;
+using SentinelBackend.Infrastructure;
 using SentinelBackend.Infrastructure.Persistence;
 using SentinelBackend.Ingestion;
 
@@ -38,6 +40,8 @@ builder.Services.AddDbContext<SentinelDbContext>(options =>
         o => o.EnableRetryOnFailure()
     )
 );
+
+builder.Services.AddScoped<IAlarmService, AlarmService>();
 
 builder.Services.AddHostedService<TelemetryIngestionWorker>();
 

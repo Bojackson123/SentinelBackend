@@ -122,6 +122,38 @@ public class AlarmsController : ControllerBase
         return Ok(new { alarm.Id, Status = alarm.Status.ToString() });
     }
 
+    /// <summary>POST /api/alarms/{alarmId}/resolve</summary>
+    [HttpPost("{alarmId:int}/resolve")]
+    public async Task<IActionResult> Resolve(
+        int alarmId,
+        [FromBody] ResolveAlarmRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var alarm = await _db.Alarms.FindAsync([alarmId], cancellationToken);
+        if (alarm is null) return NotFound();
+
+        if (alarm.Status == AlarmStatus.Resolved)
+            return BadRequest($"Alarm is already resolved.");
+
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        alarm.Status = AlarmStatus.Resolved;
+        alarm.ResolvedAt = DateTime.UtcNow;
+        alarm.UpdatedAt = DateTime.UtcNow;
+
+        _db.AlarmEvents.Add(new AlarmEvent
+        {
+            AlarmId = alarm.Id,
+            EventType = "Resolved",
+            UserId = userId,
+            Reason = request?.Reason,
+            CreatedAt = DateTime.UtcNow,
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return Ok(new { alarm.Id, Status = alarm.Status.ToString() });
+    }
+
     /// <summary>GET /api/alarms/{alarmId}/events</summary>
     [HttpGet("{alarmId:int}/events")]
     public async Task<IActionResult> GetAlarmEvents(int alarmId, CancellationToken cancellationToken)
@@ -151,4 +183,9 @@ public class AlarmsController : ControllerBase
 public class SuppressAlarmRequest
 {
     public string Reason { get; set; } = default!;
+}
+
+public class ResolveAlarmRequest
+{
+    public string? Reason { get; set; }
 }
