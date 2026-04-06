@@ -1,9 +1,10 @@
 namespace SentinelBackend.Infrastructure.Persistence;
 
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SentinelBackend.Domain.Entities;
 
-public class SentinelDbContext : DbContext
+public class SentinelDbContext : IdentityDbContext<ApplicationUser>
 {
     public SentinelDbContext(DbContextOptions<SentinelDbContext> options)
         : base(options) { }
@@ -14,12 +15,22 @@ public class SentinelDbContext : DbContext
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<DeviceAssignment> DeviceAssignments => Set<DeviceAssignment>();
     public DbSet<LatestDeviceState> LatestDeviceStates => Set<LatestDeviceState>();
+    public DbSet<DeviceConnectivityState> DeviceConnectivityStates => Set<DeviceConnectivityState>();
+    public DbSet<TelemetryHistory> TelemetryHistory => Set<TelemetryHistory>();
+    public DbSet<Alarm> Alarms => Set<Alarm>();
+    public DbSet<AlarmEvent> AlarmEvents => Set<AlarmEvent>();
+    public DbSet<FailedIngressMessage> FailedIngressMessages => Set<FailedIngressMessage>();
+    public DbSet<CommandLog> CommandLogs => Set<CommandLog>();
+    public DbSet<DesiredPropertyLog> DesiredPropertyLogs => Set<DesiredPropertyLog>();
+    public DbSet<MaintenanceWindow> MaintenanceWindows => Set<MaintenanceWindow>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<Lead> Leads => Set<Lead>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Company
+        base.OnModelCreating(modelBuilder);
+
+        // ── Company ──────────────────────────────────────────────
         modelBuilder.Entity<Company>(e =>
         {
             e.HasKey(c => c.Id);
@@ -29,9 +40,10 @@ public class SentinelDbContext : DbContext
             e.Property(c => c.ContactPhone).HasMaxLength(32);
             e.Property(c => c.StripeCustomerId).HasMaxLength(256);
             e.Property(c => c.SubscriptionStatus).HasConversion<string>();
+            e.HasQueryFilter(c => !c.IsDeleted);
         });
 
-        // Customer
+        // ── Customer ─────────────────────────────────────────────
         modelBuilder.Entity<Customer>(e =>
         {
             e.HasKey(c => c.Id);
@@ -48,7 +60,7 @@ public class SentinelDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // Site
+        // ── Site ─────────────────────────────────────────────────
         modelBuilder.Entity<Site>(e =>
         {
             e.HasKey(s => s.Id);
@@ -60,6 +72,7 @@ public class SentinelDbContext : DbContext
             e.Property(s => s.PostalCode).HasMaxLength(32).IsRequired();
             e.Property(s => s.Country).HasMaxLength(128).IsRequired();
             e.Property(s => s.Timezone).HasMaxLength(64).IsRequired();
+            e.HasQueryFilter(s => !s.IsDeleted);
 
             e.HasOne(s => s.Customer)
                 .WithMany(c => c.Sites)
@@ -67,24 +80,26 @@ public class SentinelDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Device
+        // ── Device ───────────────────────────────────────────────
         modelBuilder.Entity<Device>(e =>
         {
             e.HasKey(d => d.Id);
-            e.HasIndex(d => d.DeviceId).IsUnique();
+            e.HasIndex(d => d.DeviceId).IsUnique().HasFilter("[DeviceId] IS NOT NULL");
             e.HasIndex(d => d.SerialNumber).IsUnique();
             e.Property(d => d.DeviceId).HasMaxLength(128);
             e.Property(d => d.SerialNumber).HasMaxLength(64).IsRequired();
             e.Property(d => d.HardwareRevision).HasMaxLength(64);
             e.Property(d => d.FirmwareVersion).HasMaxLength(64);
             e.Property(d => d.Status).HasConversion<string>();
+            e.HasQueryFilter(d => !d.IsDeleted);
         });
 
-        // LatestDeviceState
-        // Dependent side of the Device one-to-one; DeviceId is an int FK to Device.Id
+        // ── LatestDeviceState ────────────────────────────────────
         modelBuilder.Entity<LatestDeviceState>(e =>
         {
             e.HasKey(s => s.DeviceId);
+            e.Property(s => s.LastMessageId).HasMaxLength(256);
+            e.Property(s => s.LastBootId).HasMaxLength(256);
 
             e.HasOne(s => s.Device)
                 .WithOne(d => d.LatestState)
@@ -92,7 +107,20 @@ public class SentinelDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // DeviceAssignment
+        // ── DeviceConnectivityState ──────────────────────────────
+        modelBuilder.Entity<DeviceConnectivityState>(e =>
+        {
+            e.HasKey(c => c.DeviceId);
+            e.Property(c => c.LastMessageType).HasMaxLength(64);
+            e.Property(c => c.LastBootId).HasMaxLength(256);
+
+            e.HasOne(c => c.Device)
+                .WithOne(d => d.ConnectivityState)
+                .HasForeignKey<DeviceConnectivityState>(c => c.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── DeviceAssignment ─────────────────────────────────────
         modelBuilder.Entity<DeviceAssignment>(e =>
         {
             e.HasKey(a => a.Id);
@@ -111,7 +139,119 @@ public class SentinelDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Subscription
+        // ── TelemetryHistory ─────────────────────────────────────
+        modelBuilder.Entity<TelemetryHistory>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.MessageId).HasMaxLength(256).IsRequired();
+            e.Property(t => t.MessageType).HasMaxLength(64).IsRequired();
+            e.Property(t => t.FirmwareVersion).HasMaxLength(64);
+            e.Property(t => t.BootId).HasMaxLength(256);
+            e.Property(t => t.RawPayloadBlobUri).HasMaxLength(1024);
+
+            e.HasIndex(t => new { t.DeviceId, t.MessageId }).IsUnique();
+            e.HasIndex(t => new { t.DeviceId, t.TimestampUtc })
+                .IsDescending(false, true);
+
+            e.HasOne(t => t.Device)
+                .WithMany(d => d.TelemetryHistory)
+                .HasForeignKey(t => t.DeviceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Alarm ────────────────────────────────────────────────
+        modelBuilder.Entity<Alarm>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.AlarmType).HasMaxLength(128).IsRequired();
+            e.Property(a => a.Severity).HasConversion<string>();
+            e.Property(a => a.Status).HasConversion<string>();
+            e.Property(a => a.SourceType).HasConversion<string>();
+            e.Property(a => a.TriggerMessageId).HasMaxLength(256);
+            e.Property(a => a.SuppressReason).HasMaxLength(1000);
+            e.Property(a => a.SuppressedByUserId).HasMaxLength(450);
+
+            e.HasIndex(a => new { a.DeviceId, a.AlarmType, a.Status });
+
+            e.HasOne(a => a.Device)
+                .WithMany(d => d.Alarms)
+                .HasForeignKey(a => a.DeviceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── AlarmEvent ───────────────────────────────────────────
+        modelBuilder.Entity<AlarmEvent>(e =>
+        {
+            e.HasKey(ae => ae.Id);
+            e.Property(ae => ae.EventType).HasMaxLength(64).IsRequired();
+            e.Property(ae => ae.UserId).HasMaxLength(450);
+            e.Property(ae => ae.Reason).HasMaxLength(1000);
+
+            e.HasOne(ae => ae.Alarm)
+                .WithMany(a => a.Events)
+                .HasForeignKey(ae => ae.AlarmId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── FailedIngressMessage ─────────────────────────────────
+        modelBuilder.Entity<FailedIngressMessage>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.Property(f => f.SourceDeviceId).HasMaxLength(128);
+            e.Property(f => f.MessageId).HasMaxLength(256);
+            e.Property(f => f.PartitionId).HasMaxLength(64).IsRequired();
+            e.Property(f => f.Offset).HasMaxLength(64).IsRequired();
+            e.Property(f => f.FailureReason).HasMaxLength(256).IsRequired();
+            e.Property(f => f.ErrorMessage).HasMaxLength(2000);
+        });
+
+        // ── CommandLog ───────────────────────────────────────────
+        modelBuilder.Entity<CommandLog>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.CommandType).HasMaxLength(64).IsRequired();
+            e.Property(c => c.Status).HasConversion<string>();
+            e.Property(c => c.RequestedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(c => c.ErrorMessage).HasMaxLength(2000);
+
+            e.HasIndex(c => new { c.DeviceId, c.Status });
+
+            e.HasOne(c => c.Device)
+                .WithMany(d => d.Commands)
+                .HasForeignKey(c => c.DeviceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── DesiredPropertyLog ────────────────────────────────────
+        modelBuilder.Entity<DesiredPropertyLog>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.PropertyName).HasMaxLength(256).IsRequired();
+            e.Property(p => p.PreviousValue).HasMaxLength(1000);
+            e.Property(p => p.NewValue).HasMaxLength(1000);
+            e.Property(p => p.RequestedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(p => p.ErrorMessage).HasMaxLength(2000);
+
+            e.HasIndex(p => new { p.DeviceId, p.RequestedAt });
+
+            e.HasOne(p => p.Device)
+                .WithMany()
+                .HasForeignKey(p => p.DeviceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── MaintenanceWindow ────────────────────────────────────
+        modelBuilder.Entity<MaintenanceWindow>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.ScopeType).HasConversion<string>();
+            e.Property(m => m.Reason).HasMaxLength(1000);
+            e.Property(m => m.CreatedByUserId).HasMaxLength(450).IsRequired();
+
+            e.HasIndex(m => new { m.ScopeType, m.EndsAt });
+        });
+
+        // ── Subscription ─────────────────────────────────────────
         modelBuilder.Entity<Subscription>(e =>
         {
             e.HasKey(s => s.Id);
@@ -131,7 +271,7 @@ public class SentinelDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // Lead
+        // ── Lead ─────────────────────────────────────────────────
         modelBuilder.Entity<Lead>(e =>
         {
             e.HasKey(l => l.Id);
@@ -156,6 +296,20 @@ public class SentinelDbContext : DbContext
             e.HasOne(l => l.PreviousCustomer)
                 .WithMany()
                 .HasForeignKey(l => l.PreviousCustomerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── ApplicationUser ──────────────────────────────────────
+        modelBuilder.Entity<ApplicationUser>(e =>
+        {
+            e.HasOne(u => u.Company)
+                .WithMany()
+                .HasForeignKey(u => u.CompanyId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(u => u.Customer)
+                .WithMany()
+                .HasForeignKey(u => u.CustomerId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

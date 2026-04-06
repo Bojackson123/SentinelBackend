@@ -65,7 +65,7 @@ public class DpsAllocationService : IDpsAllocationService
         }
 
         // First boot: transition from Manufactured → Unprovisioned
-        // Re-provision: already Unprovisioned/Claimed/Unclaimed, just update timestamps
+        // Re-provision: already Unprovisioned/Assigned/Active, just update timestamps
         var isFirstBoot = device.Status == DeviceStatus.Manufactured;
 
         device.DeviceId = registrationId; // serial number becomes the IoT Hub device ID

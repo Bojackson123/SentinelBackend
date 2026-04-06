@@ -22,6 +22,12 @@ namespace SentinelBackend.Infrastructure.Migrations
                 name: "IX_Devices_DeviceId",
                 table: "Devices");
 
+            // Drop the PK before altering the column type — SQL Server
+            // won't allow ALTER COLUMN while a constraint references it.
+            migrationBuilder.DropPrimaryKey(
+                name: "PK_LatestDeviceStates",
+                table: "LatestDeviceStates");
+
             migrationBuilder.AlterColumn<int>(
                 name: "DeviceId",
                 table: "LatestDeviceStates",
@@ -30,6 +36,11 @@ namespace SentinelBackend.Infrastructure.Migrations
                 oldClrType: typeof(string),
                 oldType: "nvarchar(128)",
                 oldMaxLength: 128);
+
+            migrationBuilder.AddPrimaryKey(
+                name: "PK_LatestDeviceStates",
+                table: "LatestDeviceStates",
+                column: "DeviceId");
 
             migrationBuilder.AlterColumn<string>(
                 name: "DeviceId",
