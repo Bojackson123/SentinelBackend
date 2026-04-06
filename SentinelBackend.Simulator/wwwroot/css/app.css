@@ -63,6 +63,7 @@ html, body {
 .btn:hover { filter: brightness(1.15); }
 .btn-start { background: var(--green); color: #000; }
 .btn-stop  { background: var(--red);   color: #fff; }
+.btn-danger { background: #7f1d1d; color: #fca5a5; border: 1px solid var(--red); }
 .btn-sm    { padding: .3rem .7rem; font-size: .75rem; }
 .btn-warn  { background: var(--orange); color: #000; }
 .btn-ok    { background: var(--green);  color: #000; }

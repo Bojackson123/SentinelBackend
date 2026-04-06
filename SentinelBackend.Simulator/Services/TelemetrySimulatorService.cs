@@ -63,6 +63,79 @@ public class TelemetrySimulatorService : IDisposable
         Log("🔴 Simulation stopped", "");
     }
 
+    // ── Data Cleanup ─────────────────────────────────────────────
+
+    public async Task ClearAllDataAsync()
+    {
+        if (IsRunning) await StopAsync();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var deviceIds = await db.Devices
+            .IgnoreQueryFilters()
+            .Where(d => d.SerialNumber.StartsWith("SIM-"))
+            .Select(d => d.Id)
+            .ToListAsync();
+
+        if (deviceIds.Count == 0)
+        {
+            Log("🧹 Clear data", "No simulator data found");
+            return;
+        }
+
+        // Delete in dependency order — notification tables may not exist yet (Phase 6 migration)
+        var alarmIds = await db.Alarms
+            .Where(a => deviceIds.Contains(a.DeviceId))
+            .Select(a => a.Id)
+            .ToListAsync();
+
+        if (alarmIds.Count > 0)
+        {
+            try
+            {
+                await db.NotificationAttempts
+                    .Where(na => db.NotificationIncidents
+                        .Where(ni => alarmIds.Contains(ni.AlarmId))
+                        .Select(ni => ni.Id)
+                        .Contains(na.NotificationIncidentId))
+                    .ExecuteDeleteAsync();
+
+                await db.EscalationEvents
+                    .Where(e => db.NotificationIncidents
+                        .Where(ni => alarmIds.Contains(ni.AlarmId))
+                        .Select(ni => ni.Id)
+                        .Contains(e.NotificationIncidentId))
+                    .ExecuteDeleteAsync();
+
+                await db.NotificationIncidents
+                    .Where(ni => alarmIds.Contains(ni.AlarmId))
+                    .ExecuteDeleteAsync();
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 208)
+            {
+                // Notification tables not yet migrated — skip
+                _logger.LogWarning("Notification tables not found, skipping cleanup");
+            }
+        }
+
+        await db.TelemetryHistory.Where(t => deviceIds.Contains(t.DeviceId)).ExecuteDeleteAsync();
+        await db.LatestDeviceStates.Where(s => deviceIds.Contains(s.DeviceId)).ExecuteDeleteAsync();
+        await db.DeviceConnectivityStates.Where(c => deviceIds.Contains(c.DeviceId)).ExecuteDeleteAsync();
+        await db.Alarms.Where(a => deviceIds.Contains(a.DeviceId)).ExecuteDeleteAsync();
+        await db.DeviceAssignments.Where(a => deviceIds.Contains(a.DeviceId)).ExecuteDeleteAsync();
+        await db.Devices.IgnoreQueryFilters().Where(d => deviceIds.Contains(d.Id)).ExecuteDeleteAsync();
+
+        await db.Sites.Where(s => s.Name == "Simulator Site").ExecuteDeleteAsync();
+        await db.Customers.Where(c => c.Email == "sim-customer@sentinel.test").ExecuteDeleteAsync();
+        await db.Companies.IgnoreQueryFilters().Where(c => c.Name == "Simulator Corp").ExecuteDeleteAsync();
+
+        _devices.Clear();
+        _totalSent = 0;
+        _totalAlarms = 0;
+
+        Log("🧹 Data cleared", $"Removed {deviceIds.Count} devices and all related records");
+    }
+
     // ── Device Scenario Controls ────────────────────────────────
 
     public void TriggerHighWater(int deviceDbId)

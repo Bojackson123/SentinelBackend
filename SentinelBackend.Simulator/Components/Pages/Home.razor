@@ -11,6 +11,7 @@
                 Devices:
                 <input type="number" min="1" max="20" @bind="_deviceCount" class="device-count-input" />
             </label>
+            <button class="btn btn-danger" @onclick="ClearData">🧹 Clear All Data</button>
         }
         else
         {
@@ -169,6 +170,12 @@ else
     private async Task StopSimulation()
     {
         await Sim.StopAsync();
+        await RefreshSnapshotAsync();
+    }
+
+    private async Task ClearData()
+    {
+        await Sim.ClearAllDataAsync();
         await RefreshSnapshotAsync();
     }
 
