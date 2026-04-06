@@ -25,7 +25,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // JWT Bearer Authentication
-var jwtSigningKey = builder.Configuration["JwtSigningKey"] ?? "CHANGE-ME-IN-KEYVAULT-MIN-32-CHARS!!";
+var jwtSigningKey = builder.Configuration["JwtSigningKey"] ?? throw new InvalidOperationException("JWT signing key is not configured.");
 var jwtIssuer = builder.Configuration["JwtIssuer"] ?? "SentinelBackend";
 var jwtAudience = builder.Configuration["JwtAudience"] ?? "SentinelBackend";
 

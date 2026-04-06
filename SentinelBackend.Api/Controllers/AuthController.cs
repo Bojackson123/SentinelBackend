@@ -87,7 +87,7 @@ public class AuthController : ControllerBase
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
 
-        var signingKey = _configuration["JwtSigningKey"] ?? "CHANGE-ME-IN-KEYVAULT-MIN-32-CHARS!!";
+        var signingKey = _configuration["JwtSigningKey"] ?? throw new InvalidOperationException("JWT signing key is not configured.");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
