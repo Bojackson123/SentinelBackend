@@ -1,10 +1,12 @@
 using System.Text;
 using Azure.Identity;
+using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using SentinelBackend.Api.Services;
 using SentinelBackend.Api.Workers;
+using SentinelBackend.Application;
 using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Domain.Enums;
 using SentinelBackend.Infrastructure;
@@ -61,6 +63,20 @@ builder.Services.AddAuthorizationBuilder()
 
 builder.Services.AddHostedService<CommandExecutorWorker>();
 builder.Services.AddHostedService<OfflineMonitorWorker>();
+builder.Services.AddHostedService<NotificationDispatchWorker>();
+
+// Phase 7 — Retention worker + raw-telemetry archive blob
+builder.Services.Configure<RetentionOptions>(builder.Configuration.GetSection(RetentionOptions.SectionName));
+builder.Services.AddHostedService<TelemetryRetentionWorker>();
+
+var rawArchiveContainer = new BlobContainerClient(
+    builder.Configuration["StorageConnectionString"],
+    "raw-telemetry");
+builder.Services.AddSingleton(rawArchiveContainer);
+builder.Services.AddSingleton<IBlobArchiveService>(sp =>
+    new BlobArchiveService(
+        sp.GetRequiredService<BlobContainerClient>(),
+        sp.GetRequiredService<ILogger<BlobArchiveService>>()));
 
 var app = builder.Build();
 

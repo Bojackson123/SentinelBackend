@@ -1,6 +1,6 @@
 # Sentinel Backend — How It Works
 
-This folder documents the current state of the Sentinel IoT backend as implemented through Phases 0–5.
+This folder documents the current state of the Sentinel IoT backend as implemented through Phases 0–6.
 
 ## Contents
 
@@ -23,6 +23,6 @@ This folder documents the current state of the Sentinel IoT backend as implement
 | 3 | Telemetry Ingestion MVP | Complete |
 | 4 | Device Configuration & Commands | Complete |
 | 5 | Alarming Foundation | Complete |
-| 6 | Notifications & Escalation | Not started |
-| 7 | Archive, Retention, Query Optimization | Not started |
+| 6 | Notifications & Escalation | Scaffolding complete |
+| 7 | Archive, Retention, Query Optimization | Scaffolding complete |
 | 8 | Production Hardening | Not started |

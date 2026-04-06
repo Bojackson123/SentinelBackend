@@ -374,4 +374,36 @@ public class DevicesController : ControllerBase
 
         return Ok(new { total, page, pageSize, commands });
     }
+
+    /// <summary>GET /api/devices/{deviceId}/telemetry/{messageId}/raw — retrieve raw archived payload</summary>
+    [HttpGet("{deviceId}/telemetry/{messageId}/raw")]
+    [Authorize(Policy = "InternalOnly")]
+    public async Task<IActionResult> GetRawPayload(
+        string deviceId,
+        string messageId,
+        [FromServices] IBlobArchiveService archiveService,
+        CancellationToken cancellationToken)
+    {
+        var device = await _tenant.ApplyScope(_db.Devices.AsNoTracking())
+            .FirstOrDefaultAsync(d => d.DeviceId == deviceId, cancellationToken);
+
+        if (device is null)
+            return NotFound();
+
+        var record = await _db.TelemetryHistory
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.DeviceId == device.Id && t.MessageId == messageId, cancellationToken);
+
+        if (record is null)
+            return NotFound();
+
+        if (string.IsNullOrWhiteSpace(record.RawPayloadBlobUri))
+            return NotFound(new { error = "Raw payload not archived for this message." });
+
+        var content = await archiveService.GetRawPayloadAsync(record.RawPayloadBlobUri, cancellationToken);
+        if (content is null)
+            return NotFound(new { error = "Raw payload blob not found in archive." });
+
+        return Content(content, "application/json");
+    }
 }

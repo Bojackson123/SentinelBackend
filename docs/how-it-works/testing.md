@@ -2,14 +2,14 @@
 
 ## Overview
 
-The solution has **116 unit tests** across **15 test files** in two test projects, plus a shared infrastructure project.
+The solution has **137 unit tests** across **18 test files** in two test projects, plus a shared infrastructure project.
 
 ## Test Projects
 
 | Project | Target | Tests |
 |---------|--------|------:|
-| `SentinelBackend.Api.Tests` | API controllers, services, domain logic | 90 |
-| `SentinelBackend.Ingestion.Tests` | Telemetry ingestion worker, alarm detection | 22 |
+| `SentinelBackend.Api.Tests` | API controllers, services, domain logic | 116 |
+| `SentinelBackend.Ingestion.Tests` | Telemetry ingestion worker, alarm detection | 21 |
 | `SentinelBackend.Tests.Shared` | Shared helpers (no tests) | — |
 
 All tests use **xUnit** with `[Fact]` attributes.
@@ -37,6 +37,12 @@ Test implementation of `ITenantContext` with the same `ApplyScope` logic as `Htt
 - `FakeTenantContext.Internal()` — sees everything
 - `FakeTenantContext.ForCompany(companyId)` — company-scoped
 - `FakeTenantContext.ForHomeowner(customerId)` — customer-scoped
+
+### FakeBlobArchiveService
+In-memory implementation of `IBlobArchiveService` for tests that need blob archive operations without real Azure Blob Storage. Stores payloads in a `Dictionary<string, string>` keyed by URI.
+
+### NullNotificationService
+No-op implementation of `INotificationService` used in tests that don't verify notification behaviour.
 
 ## Test Files by Category
 
@@ -68,6 +74,17 @@ Test implementation of `ITenantContext` with the same `ApplyScope` logic as `Htt
 | `AlarmServiceTests.cs` | 13 | AlarmService: raise with dedup suppression, ownership snapshot, resolve, auto-resolve, alarm lifecycle cycles, trigger message storage |
 | `OfflineMonitorTests.cs` | 5 | Offline threshold detection, alarm raising, auto-resolve on reconnect, duplicate suppression, maintenance window suppression, Active-only filtering |
 | `TelemetryAlarmTests.cs` | 7 | Telemetry-fallback alarm detection: HighWater raise/auto-resolve, duplicate suppression, alarm cycling, ownership snapshot population |
+
+### Phase 6 — Notifications & Escalation
+| File | Tests | Coverage |
+|------|------:|----------|
+| `NotificationServiceTests.cs` | 9 | NotificationService: incident creation, duplicate suppression, acknowledge cancels pending, close on alarm resolve, escalation level progression, closed incident no-op, ownership propagation, AlarmService integration (raise creates incident, resolve closes incident) |
+
+### Phase 7 — Archive, Retention, Query Optimization
+| File | Tests | Coverage |
+|------|------:|----------|
+| `TelemetryRetentionTests.cs` | 6 | Hot retention purge, archive safety gate (RequireArchiveBeforePurge), unarchived purge when gate disabled, batch size limit, failed ingress purge, no-op on empty tables |
+| `BlobArchiveServiceTests.cs` | 6 | Archive returns URI, archive idempotency, retrieval after archive, not-found returns null, delete removes content, delete not-found returns false |
 
 ### Phase 4 — Commands & Configuration
 | File | Tests | Coverage |

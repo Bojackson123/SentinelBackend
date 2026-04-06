@@ -875,6 +875,37 @@ Phase 7 is complete when:
 
 - cold archive is retrievable for diagnostics and analytics use
 
+12.5 Implementation Status (Scaffolding Complete)
+
+
+Phase 7 scaffolding is complete. Summary of delivered artefacts:
+
+**Archive & Retrieval:**
+- `IBlobArchiveService` interface — archive, retrieve, delete raw payloads
+- `BlobArchiveService` implementation — wraps `BlobContainerClient` for `raw-telemetry` container
+- `FakeBlobArchiveService` — in-memory test double in Tests.Shared
+- `TelemetryIngestionWorker` refactored to use `IBlobArchiveService` (extracted inline blob logic)
+- `GET /api/devices/{deviceId}/telemetry/{messageId}/raw` — refactored to use `IBlobArchiveService`
+- Registered as singleton in both Api and Ingestion DI
+
+**Retention:**
+- `RetentionOptions` — configurable hot retention, batch size, purge interval, archive safety gate, failed ingress retention
+- `TelemetryRetentionWorker` — background purge of expired telemetry history and failed ingress messages
+- `Retention` config section added to `appsettings.json`
+
+**Query Optimization:**
+- Composite indexes on `TelemetryHistory`, `Alarm`, `CommandLog`, `NotificationIncident/Attempt`, `MaintenanceWindow`, `Device`
+- Cursor-based pagination for telemetry and alarm events; offset pagination for list endpoints
+
+**Tests:** 137 total (116 Api + 21 Ingestion), all passing in ~5s
+- 6 retention tests: hot purge, archive safety, batch limits, failed ingress, no-op
+- 6 blob archive service tests: archive, idempotency, retrieval, not-found, delete
+
+**Remaining for hardening (non-scaffolding):**
+- Azure Storage lifecycle policy for Hot → Cool → Archive tier transitions
+- Optional blob cleanup during SQL purge (orphan mitigation)
+- SQL table partitioning evaluation for scale
+
 
 ---
 

@@ -68,6 +68,16 @@ Paginated telemetry history with cursor-based pagination.
 **Query:** `after` (DateTime cursor), `pageSize` (default 50, max 200)  
 **Response:** Array of telemetry records ordered by `timestampUtc` descending.
 
+### GET /api/devices/{deviceId}/telemetry/{messageId}/raw
+Retrieve the raw archived JSON payload for a specific telemetry message.
+
+**Auth:** InternalOnly  
+**Response:** `200 OK` — raw JSON payload (`application/json`)  
+**Errors:**
+- `404` — device not found, telemetry record not found, payload not archived, or blob not found in storage
+
+Fetches the blob content via `IBlobArchiveService.GetRawPayloadAsync()` using the `RawPayloadBlobUri` stored on the `TelemetryHistory` record.
+
 ---
 
 ## Device Configuration (Phase 4)
@@ -233,6 +243,39 @@ Manually resolve an alarm.
 
 ### GET /api/alarms/{alarmId}/events
 Get the event history for an alarm (ordered chronologically).
+
+---
+
+## Notifications
+
+### GET /api/notifications
+List notification incidents visible to the current tenant.
+
+**Auth:** AllAuthenticated  
+**Query:** `status` (filter by incident status), `alarmId`, `page`, `pageSize`  
+**Response:** `200 OK` — paginated list with `{ total, page, pageSize, incidents }`.
+
+### GET /api/notifications/{incidentId}
+Get detail for a single notification incident.
+
+**Auth:** AllAuthenticated  
+**Response:** `200 OK` — incident detail including status, escalation level, and timestamps.
+
+### GET /api/notifications/{incidentId}/attempts
+List delivery attempts for a notification incident (ordered chronologically).
+
+**Auth:** AllAuthenticated
+
+### GET /api/notifications/{incidentId}/escalations
+List escalation events for a notification incident (ordered chronologically).
+
+**Auth:** AllAuthenticated
+
+### POST /api/notifications/{incidentId}/acknowledge
+Acknowledge a notification incident, stopping further retries and escalation.
+
+**Auth:** AllAuthenticated  
+**Response:** `200 OK` — `{ "id": 1, "status": "Acknowledged" }`
 
 ---
 

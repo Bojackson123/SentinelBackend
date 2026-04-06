@@ -25,4 +25,5 @@ public class Alarm
 
     public Device Device { get; set; } = default!;
     public ICollection<AlarmEvent> Events { get; set; } = [];
+    public ICollection<NotificationIncident> NotificationIncidents { get; set; } = [];
 }

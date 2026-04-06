@@ -1294,6 +1294,7 @@
         "dependencies": {
           "Azure.Identity": "1.20.0",
           "Azure.Security.KeyVault.Secrets": "4.9.0",
+          "Azure.Storage.Blobs": "12.27.0",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "9.0.4",
           "Microsoft.Azure.Devices": "1.40.0",
           "Microsoft.Azure.Devices.Provisioning.Service": "1.18.4",

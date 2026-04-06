@@ -23,6 +23,9 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CommandLog> CommandLogs => Set<CommandLog>();
     public DbSet<DesiredPropertyLog> DesiredPropertyLogs => Set<DesiredPropertyLog>();
     public DbSet<MaintenanceWindow> MaintenanceWindows => Set<MaintenanceWindow>();
+    public DbSet<NotificationIncident> NotificationIncidents => Set<NotificationIncident>();
+    public DbSet<NotificationAttempt> NotificationAttempts => Set<NotificationAttempt>();
+    public DbSet<EscalationEvent> EscalationEvents => Set<EscalationEvent>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<Lead> Leads => Set<Lead>();
 
@@ -246,6 +249,59 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(p => p.DeviceId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── NotificationIncident ─────────────────────────────────
+        modelBuilder.Entity<NotificationIncident>(e =>
+        {
+            e.HasKey(n => n.Id);
+            e.Property(n => n.Status).HasConversion<string>();
+            e.Property(n => n.AcknowledgedByUserId).HasMaxLength(450);
+            e.HasQueryFilter(n => !n.Device.IsDeleted);
+
+            e.HasIndex(n => new { n.AlarmId });
+            e.HasIndex(n => new { n.DeviceId, n.Status });
+
+            e.HasOne(n => n.Alarm)
+                .WithMany(a => a.NotificationIncidents)
+                .HasForeignKey(n => n.AlarmId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(n => n.Device)
+                .WithMany()
+                .HasForeignKey(n => n.DeviceId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── NotificationAttempt ──────────────────────────────────
+        modelBuilder.Entity<NotificationAttempt>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Channel).HasConversion<string>();
+            e.Property(a => a.Status).HasConversion<string>();
+            e.Property(a => a.Recipient).HasMaxLength(512).IsRequired();
+            e.Property(a => a.ProviderMessageId).HasMaxLength(256);
+            e.Property(a => a.ErrorMessage).HasMaxLength(2000);
+
+            e.HasIndex(a => new { a.NotificationIncidentId, a.Status });
+            e.HasIndex(a => new { a.Status, a.ScheduledAt });
+
+            e.HasOne(a => a.NotificationIncident)
+                .WithMany(n => n.Attempts)
+                .HasForeignKey(a => a.NotificationIncidentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── EscalationEvent ──────────────────────────────────────
+        modelBuilder.Entity<EscalationEvent>(e =>
+        {
+            e.HasKey(ev => ev.Id);
+            e.Property(ev => ev.Reason).HasMaxLength(1000).IsRequired();
+
+            e.HasOne(ev => ev.NotificationIncident)
+                .WithMany(n => n.Escalations)
+                .HasForeignKey(ev => ev.NotificationIncidentId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── MaintenanceWindow ────────────────────────────────────

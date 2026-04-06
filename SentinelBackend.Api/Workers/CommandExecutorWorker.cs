@@ -42,7 +42,7 @@ public class CommandExecutorWorker : BackgroundService
         {
             try
             {
-                await ProcessPendingCommandsAsync(stoppingToken);
+                await RunPollCycleAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -57,6 +57,14 @@ public class CommandExecutorWorker : BackgroundService
         }
 
         _logger.LogInformation("CommandExecutorWorker stopped");
+    }
+
+    /// <summary>
+    /// Runs a single poll cycle. Exposed as internal for testability.
+    /// </summary>
+    internal async Task RunPollCycleAsync(CancellationToken stoppingToken = default)
+    {
+        await ProcessPendingCommandsAsync(stoppingToken);
     }
 
     private async Task ProcessPendingCommandsAsync(CancellationToken stoppingToken)

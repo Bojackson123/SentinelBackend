@@ -95,11 +95,7 @@ public class CommandExecutorTests
             NullLogger<CommandExecutorWorker>.Instance,
             CreateWorkerConfiguration()
         );
-        using var cts = new CancellationTokenSource();
-        await worker.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(7));
-        cts.Cancel();
-        await worker.StopAsync(CancellationToken.None);
+        await worker.RunPollCycleAsync();
 
         using var assertDb = OpenDb(dbName);
         var command = await assertDb.CommandLogs.FirstAsync();
@@ -144,11 +140,7 @@ public class CommandExecutorTests
             NullLogger<CommandExecutorWorker>.Instance,
             CreateWorkerConfiguration()
         );
-        using var cts = new CancellationTokenSource();
-        await worker.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(7));
-        cts.Cancel();
-        await worker.StopAsync(CancellationToken.None);
+        await worker.RunPollCycleAsync();
 
         using var assertDb = OpenDb(dbName);
         var command = await assertDb.CommandLogs.FirstAsync();
@@ -186,11 +178,7 @@ public class CommandExecutorTests
             NullLogger<CommandExecutorWorker>.Instance,
             CreateWorkerConfiguration()
         );
-        using var cts = new CancellationTokenSource();
-        await worker.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(7));
-        cts.Cancel();
-        await worker.StopAsync(CancellationToken.None);
+        await worker.RunPollCycleAsync();
 
         using var assertDb = OpenDb(dbName);
         var command = await assertDb.CommandLogs.FirstAsync();
@@ -231,11 +219,7 @@ public class CommandExecutorTests
             NullLogger<CommandExecutorWorker>.Instance,
             CreateWorkerConfiguration()
         );
-        using var cts = new CancellationTokenSource();
-        await worker.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(7));
-        cts.Cancel();
-        await worker.StopAsync(CancellationToken.None);
+        await worker.RunPollCycleAsync();
 
         var expectedMethods = new[] { "reboot", "ping", "captureSnapshot", "runSelfTest", "syncNow", "clearFault" };
         var methodNames = fakeMethod.Invocations.Select(i => i.MethodName).ToList();
@@ -274,11 +258,7 @@ public class CommandExecutorTests
             NullLogger<CommandExecutorWorker>.Instance,
             CreateWorkerConfiguration()
         );
-        using var cts = new CancellationTokenSource();
-        await worker.StartAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromSeconds(7));
-        cts.Cancel();
-        await worker.StopAsync(CancellationToken.None);
+        await worker.RunPollCycleAsync();
 
         using var assertDb = OpenDb(dbName);
         var command = await assertDb.CommandLogs.FirstAsync();

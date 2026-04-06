@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using Azure.Messaging.EventHubs;
 using Azure.Messaging.EventHubs.Processor;
-using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
 using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Contracts;
@@ -16,7 +15,7 @@ public class TelemetryIngestionWorker : BackgroundService
 {
     private readonly EventProcessorClient _processor;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly BlobContainerClient _rawArchiveContainer;
+    private readonly IBlobArchiveService _archiveService;
     private readonly ILogger<TelemetryIngestionWorker> _logger;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -27,12 +26,12 @@ public class TelemetryIngestionWorker : BackgroundService
     public TelemetryIngestionWorker(
         EventProcessorClient processor,
         IServiceScopeFactory scopeFactory,
-        BlobContainerClient rawArchiveContainer,
+        IBlobArchiveService archiveService,
         ILogger<TelemetryIngestionWorker> logger)
     {
         _processor = processor;
         _scopeFactory = scopeFactory;
-        _rawArchiveContainer = rawArchiveContainer;
+        _archiveService = archiveService;
         _logger = logger;
     }
 
@@ -169,24 +168,8 @@ public class TelemetryIngestionWorker : BackgroundService
 
         // ── Persist telemetry history ────────────────────────────
         // Archive raw payload to Blob storage
-        string? rawPayloadBlobUri = null;
-        try
-        {
-            var blobName = $"{deviceId}/{timestampUtc:yyyy/MM/dd}/{message.MessageId}.json";
-            var blobClient = _rawArchiveContainer.GetBlobClient(blobName);
-            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-            await blobClient.UploadAsync(stream, overwrite: false);
-            rawPayloadBlobUri = blobClient.Uri.ToString();
-        }
-        catch (Azure.RequestFailedException ex) when (ex.Status == 409)
-        {
-            // Blob already exists (replay) — not an error
-            _logger.LogDebug("Raw payload blob already exists for {MessageId}", message.MessageId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to archive raw payload for {MessageId} — continuing", message.MessageId);
-        }
+        var rawPayloadBlobUri = await _archiveService.ArchiveRawPayloadAsync(
+            deviceId, timestampUtc, message.MessageId, json);
 
         var telemetryRecord = new TelemetryHistory
         {

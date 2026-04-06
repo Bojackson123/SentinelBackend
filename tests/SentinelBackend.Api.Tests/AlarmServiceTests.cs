@@ -15,7 +15,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, wasCreated) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -35,7 +35,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (firstAlarm, firstCreated) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -56,7 +56,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -76,7 +76,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (firstAlarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -96,7 +96,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm1, created1) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -126,7 +126,7 @@ public class AlarmServiceTests
         db.DeviceAssignments.Add(assignment);
         await db.SaveChangesAsync();
 
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
         var (alarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
 
@@ -141,7 +141,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "DeviceOffline", AlarmSeverity.Warning, AlarmSourceType.SystemGenerated);
@@ -157,7 +157,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -179,7 +179,7 @@ public class AlarmServiceTests
     public async Task ResolveAlarm_ReturnsNull_WhenNotFound()
     {
         using var db = TestDb.Create();
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var result = await service.ResolveAlarmAsync(999);
 
@@ -191,7 +191,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -214,7 +214,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // Create two alarms of same type (simulate earlier resolved + new)
         var (alarm1, _) = await service.RaiseAlarmAsync(
@@ -240,7 +240,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var count = await service.AutoResolveAlarmsAsync(seed.Device.Id, "HighWater");
 
@@ -252,7 +252,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -272,7 +272,7 @@ public class AlarmServiceTests
     {
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
-        var service = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var service = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, _) = await service.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical,

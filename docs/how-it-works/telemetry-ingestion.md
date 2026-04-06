@@ -24,6 +24,7 @@ The worker host registers:
 | `EventProcessorClient` | `IoTHubEventHubConnectionString` | Reads from `$Default` consumer group |
 | `BlobContainerClient` (checkpoints) | `StorageConnectionString` / `iot-checkpoints` | Stores partition offsets |
 | `BlobContainerClient` (raw archive) | `StorageConnectionString` / `raw-telemetry` | Archives raw JSON |
+| `IBlobArchiveService` → `BlobArchiveService` | `BlobContainerClient` | Abstraction over raw payload blob operations |
 | `SentinelDbContext` | `SqlConnectionString` | EF Core with retry-on-failure |
 
 All secrets are loaded from Azure Key Vault via `AddAzureKeyVault`.
@@ -63,12 +64,14 @@ DeviceAssignment (UnassignedAt == null) → Site → Customer → Company
 The resulting `AssignmentId`, `SiteId`, `CustomerId`, `CompanyId` are stamped onto the `TelemetryHistory` row. This denormalisation means historical queries don't need joins and are correct even if ownership changes later.
 
 ### 6. Raw Payload Archive
-The original JSON is uploaded to Azure Blob Storage:
+The original JSON is archived via `IBlobArchiveService.ArchiveRawPayloadAsync()` to Azure Blob Storage:
 ```
 raw-telemetry/{deviceId}/{yyyy/MM/dd}/{messageId}.json
 ```
-- **409 Conflict** (blob exists) is silently ignored (dedup at blob level)
-- Other upload failures are logged but do **not** block processing
+- **409 Conflict** (blob exists) returns the existing URI (dedup at blob level)
+- Other upload failures are logged but do **not** block processing — `RawPayloadBlobUri` is set to `null`
+
+The blob archiving logic was extracted from inline `BlobContainerClient` usage into `BlobArchiveService` for testability and reuse by the raw payload retrieval API endpoint.
 
 ### 7. TelemetryHistory Insert
 A new `TelemetryHistory` row is created with all telemetry fields, timestamps, ownership snapshot, and the blob URI.

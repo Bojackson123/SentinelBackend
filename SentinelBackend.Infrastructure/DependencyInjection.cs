@@ -66,6 +66,8 @@ public static class DependencyInjection
         services.AddScoped<IManufacturingBatchService, ManufacturingBatchService>();
         services.AddScoped<IDeviceRepository, DeviceRepository>();
         services.AddScoped<IAlarmService, AlarmService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddSingleton<INotificationDispatcher, LoggingNotificationDispatcher>();
 
         // IoT Hub RegistryManager for twin updates
         services.AddSingleton(sp =>

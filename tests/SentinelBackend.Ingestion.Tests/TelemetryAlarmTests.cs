@@ -24,7 +24,7 @@ public class TelemetryAlarmTests
         seed.Device.DeviceId = "GP-202604-00001";
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // Simulate what ingestion worker does when HighWaterAlarm == true
         var (alarm, wasCreated) = await alarmService.RaiseAlarmAsync(
@@ -50,7 +50,7 @@ public class TelemetryAlarmTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // First create an active HighWater alarm
         await alarmService.RaiseAlarmAsync(
@@ -76,7 +76,7 @@ public class TelemetryAlarmTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // First telemetry with HighWaterAlarm = true
         var (alarm1, created1) = await alarmService.RaiseAlarmAsync(
@@ -102,7 +102,7 @@ public class TelemetryAlarmTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // Raise and resolve first alarm
         var (alarm1, _) = await alarmService.RaiseAlarmAsync(
@@ -135,7 +135,7 @@ public class TelemetryAlarmTests
         });
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         var (alarm, _) = await alarmService.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
@@ -151,7 +151,7 @@ public class TelemetryAlarmTests
         using var db = TestDb.Create();
         var seed = await TestDb.SeedFullHierarchyAsync(db);
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // No alarms exist — should return 0  without error
         var resolved = await alarmService.AutoResolveAlarmsAsync(

@@ -33,6 +33,10 @@ var rawArchiveContainer = new BlobContainerClient(
     builder.Configuration["StorageConnectionString"],
     "raw-telemetry");
 builder.Services.AddSingleton(rawArchiveContainer);
+builder.Services.AddSingleton<IBlobArchiveService>(sp =>
+    new BlobArchiveService(
+        sp.GetRequiredService<BlobContainerClient>(),
+        sp.GetRequiredService<ILogger<BlobArchiveService>>()));
 
 builder.Services.AddDbContext<SentinelDbContext>(options =>
     options.UseSqlServer(
@@ -42,6 +46,7 @@ builder.Services.AddDbContext<SentinelDbContext>(options =>
 );
 
 builder.Services.AddScoped<IAlarmService, AlarmService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddHostedService<TelemetryIngestionWorker>();
 

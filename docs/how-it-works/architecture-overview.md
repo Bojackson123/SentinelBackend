@@ -42,6 +42,8 @@ ASP.NET Core Web API hosting:
 - JWT Bearer authentication with role-based authorization policies
 - `CommandExecutorWorker` — a `BackgroundService` that polls for pending commands and executes IoT Hub direct methods
 - `OfflineMonitorWorker` — a `BackgroundService` that periodically scans device connectivity state and raises/resolves `DeviceOffline` alarms
+- `NotificationDispatchWorker` — a `BackgroundService` that processes pending notification attempts, handles retries with exponential backoff, and triggers escalation when max retries are exhausted
+- `TelemetryRetentionWorker` — a `BackgroundService` that periodically purges expired `TelemetryHistory` rows (respecting archive safety gate) and old `FailedIngressMessages` in configurable batches
 - Scalar API reference UI in development mode
 - Secrets loaded from Azure Key Vault via `DefaultAzureCredential`
 
@@ -50,7 +52,7 @@ ASP.NET Core Web API hosting:
 .NET Worker Service hosting:
 - `TelemetryIngestionWorker` — a `BackgroundService` consuming IoT Hub's Event Hubs-compatible endpoint via `EventProcessorClient`
 - Checkpoints stored in Azure Blob Storage (`iot-checkpoints` container)
-- Raw payloads archived to Blob Storage (`raw-telemetry` container)
+- Raw payloads archived to Blob Storage (`raw-telemetry` container) via `IBlobArchiveService`
 - Connects to the same Azure SQL database as the API
 
 ## Azure Dependencies
@@ -66,7 +68,14 @@ ASP.NET Core Web API hosting:
 
 ## Configuration
 
-All secrets are stored in Azure Key Vault and loaded at startup. The only config in `appsettings.json` is logging levels. `appsettings.Development.json` contains the Key Vault URL.
+All secrets are stored in Azure Key Vault and loaded at startup. `appsettings.json` also contains the `CommandExecutor` and `Retention` configuration sections. `appsettings.Development.json` contains the Key Vault URL.
+
+Retention configuration (`Retention` section in `appsettings.json`):
+- `HotRetentionDays` (90) — days to keep telemetry in hot SQL storage
+- `PurgeBatchSize` (10,000) — max rows deleted per purge cycle
+- `PurgeIntervalSeconds` (3600) — interval between purge cycles
+- `RequireArchiveBeforePurge` (true) — only purge rows with a blob URI
+- `FailedIngressRetentionDays` (30) — days to keep failed ingress records
 
 Key Vault secrets used:
 - `SqlConnectionString` — Azure SQL connection string
@@ -99,3 +108,4 @@ All infrastructure services are registered in `Infrastructure/DependencyInjectio
 | `IDpsAllocationService` → `DpsAllocationService` | Scoped | DPS custom allocation logic |
 | `IManufacturingBatchService` → `ManufacturingBatchService` | Scoped | Batch device creation |
 | `ITenantContext` → `HttpTenantContext` | Scoped | Tenant scoping from JWT claims (Api only) |
+| `IBlobArchiveService` → `BlobArchiveService` | Singleton | Raw telemetry archiving, retrieval, and deletion (Api + Ingestion) |

@@ -10,6 +10,8 @@ Device 1──1 LatestDeviceState
 Device 1──1 DeviceConnectivityState
 Device 1──* TelemetryHistory
 Device 1──* Alarm 1──* AlarmEvent
+                  1──* NotificationIncident 1──* NotificationAttempt
+                                             1──* EscalationEvent
 Device 1──* CommandLog
 Device 1──* DesiredPropertyLog (via FK)
 
@@ -280,6 +282,56 @@ Scheduled maintenance period that suppress offline alerts.
 
 **Index:** `(ScopeType, EndsAt)` — efficient window lookup.
 
+### NotificationIncident
+Tracks a notification workflow triggered by an alarm. One per alarm; contains attempts and escalations.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | int | PK |
+| AlarmId | int | FK → Alarm (Restrict) |
+| DeviceId | int | FK → Device (Restrict) |
+| SiteId / CustomerId / CompanyId | int? | ownership snapshot from alarm |
+| Status | enum → string | Open / Acknowledged / Escalated / Closed |
+| CurrentEscalationLevel | int | starts at 0 |
+| MaxAttempts | int | max retries per level |
+| AcknowledgedAt | DateTime? | |
+| AcknowledgedByUserId | string(450)? | |
+| CreatedAt / UpdatedAt | DateTime | |
+
+**Indexes:** `(AlarmId)`, `(DeviceId, Status)`
+**Query filter:** `!Device.IsDeleted`
+
+### NotificationAttempt
+Single delivery attempt for a notification incident.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | bigint | PK |
+| NotificationIncidentId | int | FK → NotificationIncident (Cascade) |
+| Channel | enum → string | Email / Sms / Push / Voice |
+| Status | enum → string | Pending / Sending / Delivered / Failed / Cancelled |
+| Recipient | string(512) | |
+| AttemptNumber | int | within an escalation level |
+| EscalationLevel | int | |
+| ProviderMessageId | string(256)? | external provider reference |
+| ErrorMessage | string(2000)? | |
+| ScheduledAt | DateTime | when the attempt should be dispatched |
+| SentAt / DeliveredAt / FailedAt | DateTime? | |
+| CreatedAt | DateTime | |
+
+**Indexes:** `(NotificationIncidentId, Status)`, `(Status, ScheduledAt)` — dispatch worker poll
+
+### EscalationEvent
+Records an escalation step within a notification incident.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | int | PK |
+| NotificationIncidentId | int | FK → NotificationIncident (Cascade) |
+| FromLevel / ToLevel | int | |
+| Reason | string(1000) | |
+| CreatedAt | DateTime | |
+
 ### ApplicationUser
 Extends ASP.NET Core `IdentityUser` with tenant links.
 
@@ -304,6 +356,9 @@ Extends ASP.NET Core `IdentityUser` with tenant links.
 | **CommandStatus** | Pending, Sent, Succeeded, Failed, TimedOut |
 | **LeadStatus** | Available, InNegotiation, Sold |
 | **MaintenanceWindowScope** | Device, Site, Company |
+| **NotificationChannel** | Email, Sms, Push, Voice |
+| **NotificationStatus** | Pending, Sending, Delivered, Failed, Cancelled |
+| **NotificationIncidentStatus** | Open, Acknowledged, Escalated, Closed |
 | **SubscriptionOwnerType** | Company, Homeowner |
 | **SubscriptionStatus** | Trialing, Active, PastDue, Cancelled, Suspended |
 | **UnassignmentReason** | CustomerRequest, SubscriptionLapsed, Transferred, Decommissioned |
@@ -332,3 +387,4 @@ All enums stored as **strings** in SQL via `.HasConversion<string>()`.
 | 5 | `AddPhase1Entities` | Subscription, Lead, MaintenanceWindow, additional indexes |
 | 6 | `AddPhase2Phase3Completion` | DeviceAssignment, TelemetryHistory, Alarm, AlarmEvent, FailedIngressMessage, DeviceConnectivityState |
 | 7 | `AddDesiredPropertyLog` | CommandLog, DesiredPropertyLog (Phase 4) |
+| 8 | `AddNotificationEntities` | NotificationIncident, NotificationAttempt, EscalationEvent (Phase 6) |

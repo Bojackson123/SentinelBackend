@@ -31,7 +31,7 @@ public class OfflineMonitorTests
         });
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // Simulate offline monitor logic
         var now = DateTime.UtcNow;
@@ -76,7 +76,7 @@ public class OfflineMonitorTests
         });
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // Create existing DeviceOffline alarm
         await alarmService.RaiseAlarmAsync(
@@ -115,7 +115,7 @@ public class OfflineMonitorTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance);
+        var alarmService = new AlarmService(db, NullLogger<AlarmService>.Instance, new NullNotificationService());
 
         // Raise first DeviceOffline alarm
         var (alarm1, created1) = await alarmService.RaiseAlarmAsync(

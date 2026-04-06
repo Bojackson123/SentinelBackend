@@ -154,17 +154,31 @@ public class AlarmsController : ControllerBase
         return Ok(new { alarm.Id, Status = alarm.Status.ToString() });
     }
 
-    /// <summary>GET /api/alarms/{alarmId}/events</summary>
+    /// <summary>GET /api/alarms/{alarmId}/events — cursor-paginated event history</summary>
     [HttpGet("{alarmId:int}/events")]
-    public async Task<IActionResult> GetAlarmEvents(int alarmId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAlarmEvents(
+        int alarmId,
+        [FromQuery] int? afterId,
+        [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
     {
+        if (pageSize is < 1 or > 200) pageSize = 50;
+
         var exists = await _db.Alarms.AnyAsync(a => a.Id == alarmId, cancellationToken);
         if (!exists) return NotFound();
 
-        var events = await _db.AlarmEvents
+        var query = _db.AlarmEvents
             .AsNoTracking()
-            .Where(e => e.AlarmId == alarmId)
-            .OrderBy(e => e.CreatedAt)
+            .Where(e => e.AlarmId == alarmId);
+
+        if (afterId.HasValue)
+        {
+            query = query.Where(e => e.Id > afterId.Value);
+        }
+
+        var events = await query
+            .OrderBy(e => e.Id)
+            .Take(pageSize)
             .Select(e => new
             {
                 e.Id,

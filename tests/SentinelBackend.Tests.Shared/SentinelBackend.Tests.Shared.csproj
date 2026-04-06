@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SentinelBackend.Infrastructure\SentinelBackend.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\SentinelBackend.Application\SentinelBackend.Application.csproj" />
     <ProjectReference Include="..\..\SentinelBackend.Domain\SentinelBackend.Domain.csproj" />
   </ItemGroup>
 
