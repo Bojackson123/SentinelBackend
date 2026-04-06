@@ -4,7 +4,7 @@ public enum DeviceStatus
 {
     Manufactured,
     Unprovisioned,
-    Claimed,
-    Unclaimed,
+    Assigned,
+    Active,
     Decommissioned
 }

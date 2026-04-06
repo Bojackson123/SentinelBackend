@@ -26,6 +26,12 @@ var processor = new EventProcessorClient(
 
 builder.Services.AddSingleton(processor);
 
+// Raw telemetry archive container
+var rawArchiveContainer = new BlobContainerClient(
+    builder.Configuration["StorageConnectionString"],
+    "raw-telemetry");
+builder.Services.AddSingleton(rawArchiveContainer);
+
 builder.Services.AddDbContext<SentinelDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration["SqlConnectionString"],

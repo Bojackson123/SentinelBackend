@@ -14,6 +14,8 @@ public class Site
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public string Timezone { get; set; } = default!;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
