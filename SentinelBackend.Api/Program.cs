@@ -6,6 +6,7 @@ using Scalar.AspNetCore;
 using SentinelBackend.Api.Services;
 using SentinelBackend.Api.Workers;
 using SentinelBackend.Application.Interfaces;
+using SentinelBackend.Domain.Enums;
 using SentinelBackend.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -62,6 +63,8 @@ builder.Services.AddHostedService<CommandExecutorWorker>();
 
 var app = builder.Build();
 
+await SeedIdentityRolesAsync(app.Services);
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -74,3 +77,22 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static async Task SeedIdentityRolesAsync(IServiceProvider services)
+{
+    using var scope = services.CreateScope();
+    var roleManager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
+
+    foreach (var role in Enum.GetNames<UserRole>())
+    {
+        if (!await roleManager.RoleExistsAsync(role))
+        {
+            var result = await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(role));
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"Failed to seed role '{role}': {errors}");
+            }
+        }
+    }
+}

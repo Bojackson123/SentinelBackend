@@ -1,6 +1,7 @@
 namespace SentinelBackend.Api.Tests;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentinelBackend.Api.Workers;
@@ -13,6 +14,18 @@ using Xunit;
 
 public class CommandExecutorTests
 {
+    private static IConfiguration CreateWorkerConfiguration(int pollIntervalSeconds = 1)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["CommandExecutor:PollIntervalSeconds"] = pollIntervalSeconds.ToString(),
+        };
+
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+    }
+
     private sealed class FakeDirectMethodService : IDirectMethodService
     {
         public int StatusToReturn { get; set; } = 200;
@@ -77,7 +90,11 @@ public class CommandExecutorTests
             await setupDb.SaveChangesAsync();
         }
 
-        var worker = new CommandExecutorWorker(scopeFactory, NullLogger<CommandExecutorWorker>.Instance);
+        var worker = new CommandExecutorWorker(
+            scopeFactory,
+            NullLogger<CommandExecutorWorker>.Instance,
+            CreateWorkerConfiguration()
+        );
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
         await Task.Delay(TimeSpan.FromSeconds(7));
@@ -122,7 +139,11 @@ public class CommandExecutorTests
             await setupDb.SaveChangesAsync();
         }
 
-        var worker = new CommandExecutorWorker(scopeFactory, NullLogger<CommandExecutorWorker>.Instance);
+        var worker = new CommandExecutorWorker(
+            scopeFactory,
+            NullLogger<CommandExecutorWorker>.Instance,
+            CreateWorkerConfiguration()
+        );
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
         await Task.Delay(TimeSpan.FromSeconds(7));
@@ -160,7 +181,11 @@ public class CommandExecutorTests
             await setupDb.SaveChangesAsync();
         }
 
-        var worker = new CommandExecutorWorker(scopeFactory, NullLogger<CommandExecutorWorker>.Instance);
+        var worker = new CommandExecutorWorker(
+            scopeFactory,
+            NullLogger<CommandExecutorWorker>.Instance,
+            CreateWorkerConfiguration()
+        );
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
         await Task.Delay(TimeSpan.FromSeconds(7));
@@ -201,7 +226,11 @@ public class CommandExecutorTests
             await setupDb.SaveChangesAsync();
         }
 
-        var worker = new CommandExecutorWorker(scopeFactory, NullLogger<CommandExecutorWorker>.Instance);
+        var worker = new CommandExecutorWorker(
+            scopeFactory,
+            NullLogger<CommandExecutorWorker>.Instance,
+            CreateWorkerConfiguration()
+        );
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
         await Task.Delay(TimeSpan.FromSeconds(7));
@@ -240,7 +269,11 @@ public class CommandExecutorTests
             await setupDb.SaveChangesAsync();
         }
 
-        var worker = new CommandExecutorWorker(scopeFactory, NullLogger<CommandExecutorWorker>.Instance);
+        var worker = new CommandExecutorWorker(
+            scopeFactory,
+            NullLogger<CommandExecutorWorker>.Instance,
+            CreateWorkerConfiguration()
+        );
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
         await Task.Delay(TimeSpan.FromSeconds(7));

@@ -69,12 +69,7 @@ public static class DependencyInjection
         // IoT Hub RegistryManager for twin updates
         services.AddSingleton(sp =>
         {
-            var connectionString =
-                configuration["IoTHubServiceConnectionString"]
-                ?? configuration["IoTHubEventHubConnectionString"]
-                ?? throw new InvalidOperationException(
-                    "IoTHubServiceConnectionString is not configured."
-                );
+            var connectionString = GetIotHubServiceConnectionString(configuration);
             return RegistryManager.CreateFromConnectionString(connectionString);
         });
         services.AddScoped<IDeviceTwinService, DeviceTwinService>();
@@ -82,16 +77,42 @@ public static class DependencyInjection
         // IoT Hub ServiceClient for direct method invocation
         services.AddSingleton(sp =>
         {
-            var connectionString =
-                configuration["IoTHubServiceConnectionString"]
-                ?? configuration["IoTHubEventHubConnectionString"]
-                ?? throw new InvalidOperationException(
-                    "IoTHubServiceConnectionString is not configured."
-                );
+            var connectionString = GetIotHubServiceConnectionString(configuration);
             return ServiceClient.CreateFromConnectionString(connectionString);
         });
         services.AddScoped<IDirectMethodService, DirectMethodService>();
 
         return services;
+    }
+
+    private static string GetIotHubServiceConnectionString(IConfiguration configuration)
+    {
+        var connectionString =
+            configuration["IoTHubServiceConnectionString"]
+            ?? configuration["IoTHubConnectionString"];
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "IoTHubServiceConnectionString is not configured. "
+                    + "Set IoTHubServiceConnectionString (or legacy alias IoTHubConnectionString) "
+                    + "to an IoT Hub service connection string for twin/direct-method operations."
+            );
+        }
+
+        try
+        {
+            IotHubConnectionStringBuilder.Create(connectionString);
+        }
+        catch (Exception ex) when (ex is ArgumentException or FormatException)
+        {
+            throw new InvalidOperationException(
+                "IoTHubServiceConnectionString is invalid for IoT Hub service operations. "
+                    + "Do not use IoTHubEventHubConnectionString for twin/direct-method APIs.",
+                ex
+            );
+        }
+
+        return connectionString;
     }
 }

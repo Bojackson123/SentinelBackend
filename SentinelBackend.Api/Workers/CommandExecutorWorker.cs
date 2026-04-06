@@ -1,5 +1,6 @@
 namespace SentinelBackend.Api.Workers;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Domain.Enums;
@@ -9,20 +10,33 @@ public class CommandExecutorWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CommandExecutorWorker> _logger;
-
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _pollInterval;
+    private bool _directMethodUnavailableLogged;
 
     public CommandExecutorWorker(
         IServiceScopeFactory scopeFactory,
-        ILogger<CommandExecutorWorker> logger)
+        ILogger<CommandExecutorWorker> logger,
+        IConfiguration configuration)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+
+        var pollIntervalSeconds =
+            configuration.GetValue<int?>("CommandExecutor:PollIntervalSeconds") ?? 5;
+        if (pollIntervalSeconds <= 0)
+        {
+            pollIntervalSeconds = 5;
+        }
+
+        _pollInterval = TimeSpan.FromSeconds(pollIntervalSeconds);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("CommandExecutorWorker started");
+        _logger.LogInformation(
+            "CommandExecutorWorker started with poll interval {PollIntervalSeconds}s",
+            _pollInterval.TotalSeconds
+        );
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -39,7 +53,7 @@ public class CommandExecutorWorker : BackgroundService
                 _logger.LogError(ex, "Error processing pending commands");
             }
 
-            await Task.Delay(PollInterval, stoppingToken);
+            await Task.Delay(_pollInterval, stoppingToken);
         }
 
         _logger.LogInformation("CommandExecutorWorker stopped");
@@ -49,7 +63,26 @@ public class CommandExecutorWorker : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SentinelDbContext>();
-        var directMethod = scope.ServiceProvider.GetRequiredService<IDirectMethodService>();
+        IDirectMethodService directMethod;
+        try
+        {
+            directMethod = scope.ServiceProvider.GetRequiredService<IDirectMethodService>();
+            _directMethodUnavailableLogged = false;
+        }
+        catch (Exception ex)
+        {
+            if (!_directMethodUnavailableLogged)
+            {
+                _logger.LogError(
+                    ex,
+                    "Direct method execution is unavailable due to IoT Hub service configuration. "
+                        + "Pending commands will be retried until configuration is fixed."
+                );
+                _directMethodUnavailableLogged = true;
+            }
+
+            return;
+        }
 
         var pendingCommands = await db.CommandLogs
             .Include(c => c.Device)

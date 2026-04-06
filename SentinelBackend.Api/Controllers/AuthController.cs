@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using SentinelBackend.Domain.Entities;
+using SentinelBackend.Domain.Enums;
 
 [ApiController]
 [Route("api/auth")]
@@ -62,7 +63,13 @@ public class AuthController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(request.Role))
         {
-            await _userManager.AddToRoleAsync(user, request.Role);
+            if (!Enum.TryParse<UserRole>(request.Role, ignoreCase: true, out var parsedRole))
+                return BadRequest($"Invalid role '{request.Role}'.");
+
+            var roleName = parsedRole.ToString();
+            var roleResult = await _userManager.AddToRoleAsync(user, roleName);
+            if (!roleResult.Succeeded)
+                return BadRequest(roleResult.Errors.Select(e => e.Description));
         }
 
         return Ok(new { user.Id, user.Email });

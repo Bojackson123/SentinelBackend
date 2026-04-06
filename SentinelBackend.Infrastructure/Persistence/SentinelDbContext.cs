@@ -100,6 +100,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(s => s.DeviceId);
             e.Property(s => s.LastMessageId).HasMaxLength(256);
             e.Property(s => s.LastBootId).HasMaxLength(256);
+            e.HasQueryFilter(s => !s.Device.IsDeleted);
 
             e.HasOne(s => s.Device)
                 .WithOne(d => d.LatestState)
@@ -113,6 +114,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(c => c.DeviceId);
             e.Property(c => c.LastMessageType).HasMaxLength(64);
             e.Property(c => c.LastBootId).HasMaxLength(256);
+            e.HasQueryFilter(c => !c.Device.IsDeleted);
 
             e.HasOne(c => c.Device)
                 .WithOne(d => d.ConnectivityState)
@@ -127,6 +129,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.AssignedByUserId).HasMaxLength(450).IsRequired();
             e.Property(a => a.UnassignedByUserId).HasMaxLength(450);
             e.Property(a => a.UnassignmentReason).HasConversion<string>();
+            e.HasQueryFilter(a => !a.Device.IsDeleted);
 
             e.HasOne(a => a.Device)
                 .WithMany(d => d.Assignments)
@@ -148,6 +151,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.Property(t => t.FirmwareVersion).HasMaxLength(64);
             e.Property(t => t.BootId).HasMaxLength(256);
             e.Property(t => t.RawPayloadBlobUri).HasMaxLength(1024);
+            e.HasQueryFilter(t => !t.Device.IsDeleted);
 
             e.HasIndex(t => new { t.DeviceId, t.MessageId }).IsUnique();
             e.HasIndex(t => new { t.DeviceId, t.TimestampUtc })
@@ -170,6 +174,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.Property(a => a.TriggerMessageId).HasMaxLength(256);
             e.Property(a => a.SuppressReason).HasMaxLength(1000);
             e.Property(a => a.SuppressedByUserId).HasMaxLength(450);
+            e.HasQueryFilter(a => !a.Device.IsDeleted);
 
             e.HasIndex(a => new { a.DeviceId, a.AlarmType, a.Status });
 
@@ -186,6 +191,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.Property(ae => ae.EventType).HasMaxLength(64).IsRequired();
             e.Property(ae => ae.UserId).HasMaxLength(450);
             e.Property(ae => ae.Reason).HasMaxLength(1000);
+            e.HasQueryFilter(ae => !ae.Alarm.Device.IsDeleted);
 
             e.HasOne(ae => ae.Alarm)
                 .WithMany(a => a.Events)
@@ -213,6 +219,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.Status).HasConversion<string>();
             e.Property(c => c.RequestedByUserId).HasMaxLength(450).IsRequired();
             e.Property(c => c.ErrorMessage).HasMaxLength(2000);
+            e.HasQueryFilter(c => !c.Device.IsDeleted);
 
             e.HasIndex(c => new { c.DeviceId, c.Status });
 
@@ -231,6 +238,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.NewValue).HasMaxLength(1000);
             e.Property(p => p.RequestedByUserId).HasMaxLength(450).IsRequired();
             e.Property(p => p.ErrorMessage).HasMaxLength(2000);
+            e.HasQueryFilter(p => !p.Device.IsDeleted);
 
             e.HasIndex(p => new { p.DeviceId, p.RequestedAt });
 
@@ -277,6 +285,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(l => l.Id);
             e.Property(l => l.Status).HasConversion<string>();
             e.Property(l => l.Notes).HasMaxLength(2000);
+            e.HasQueryFilter(l => !l.Device.IsDeleted);
 
             e.HasOne(l => l.Device)
                 .WithOne(d => d.Lead)
