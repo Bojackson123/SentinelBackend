@@ -1,4 +1,4 @@
-# API Reference
+f# API Reference
 
 All endpoints are served by `SentinelBackend.Api` on HTTPS. Requests require a valid JWT Bearer token unless noted otherwise.
 
