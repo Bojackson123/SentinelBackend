@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentinel Simulator</title>
+    <base href="/" />
+    <link rel="stylesheet" href="css/app.css" />
+    <HeadOutlet @rendermode="@RenderModeForPage" />
+</head>
+<body>
+    <Routes @rendermode="@RenderModeForPage" />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+@code {
+    private static readonly IComponentRenderMode RenderModeForPage
+        = Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer;
+}
+</html>

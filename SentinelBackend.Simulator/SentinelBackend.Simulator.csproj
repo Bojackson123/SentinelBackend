@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SentinelBackend.Simulator</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.0" />
+    <PackageReference Include="Azure.Identity" Version="1.20.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SentinelBackend.Infrastructure\SentinelBackend.Infrastructure.csproj" />
+    <ProjectReference Include="..\SentinelBackend.Application\SentinelBackend.Application.csproj" />
+    <ProjectReference Include="..\SentinelBackend.Domain\SentinelBackend.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

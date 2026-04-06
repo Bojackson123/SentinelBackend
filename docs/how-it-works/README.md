@@ -12,6 +12,7 @@ This folder documents the current state of the Sentinel IoT backend as implement
 | [API Reference](api-reference.md) | Every endpoint, request/response shapes, and authorization |
 | [Telemetry Ingestion](telemetry-ingestion.md) | Event Hubs consumer, processing rules, and data flow |
 | [Testing](testing.md) | Test infrastructure, test inventory, and patterns used |
+| [Simulator](simulator.md) | Blazor Server app for visual testing with mock devices |
 
 ## Phase Status
 

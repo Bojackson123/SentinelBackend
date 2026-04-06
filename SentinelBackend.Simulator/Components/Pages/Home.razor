@@ -1,0 +1,195 @@
+@page "/"
+@inject TelemetrySimulatorService Sim
+@implements IDisposable
+
+<div class="controls-bar">
+    <div class="controls-left">
+        @if (!Sim.IsRunning)
+        {
+            <button class="btn btn-start" @onclick="StartSimulation">▶ Start Simulation</button>
+            <label class="device-count-label">
+                Devices:
+                <input type="number" min="1" max="20" @bind="_deviceCount" class="device-count-input" />
+            </label>
+        }
+        else
+        {
+            <button class="btn btn-stop" @onclick="StopSimulation">⏹ Stop</button>
+        }
+    </div>
+    <div class="controls-right">
+        <span class="status-badge @(Sim.IsRunning ? "badge-running" : "badge-stopped")">
+            @(Sim.IsRunning ? "● RUNNING" : "○ STOPPED")
+        </span>
+    </div>
+</div>
+
+@* ── KPI Counters ─────────────────────────────────────────── *@
+<div class="kpi-row">
+    <div class="kpi-card">
+        <div class="kpi-value">@(_snapshot?.TotalDevices ?? 0)</div>
+        <div class="kpi-label">Devices</div>
+    </div>
+    <div class="kpi-card kpi-blue">
+        <div class="kpi-value">@Sim.TotalMessagesSent</div>
+        <div class="kpi-label">Messages Sent</div>
+    </div>
+    <div class="kpi-card kpi-red">
+        <div class="kpi-value">@(_snapshot?.ActiveAlarms ?? 0)</div>
+        <div class="kpi-label">Active Alarms</div>
+    </div>
+    <div class="kpi-card kpi-orange">
+        <div class="kpi-value">@Sim.TotalAlarmsRaised</div>
+        <div class="kpi-label">Total Alarms Raised</div>
+    </div>
+    <div class="kpi-card kpi-gray">
+        <div class="kpi-value">@(_snapshot?.OfflineDevices ?? 0)</div>
+        <div class="kpi-label">Offline</div>
+    </div>
+    <div class="kpi-card kpi-teal">
+        <div class="kpi-value">@(_snapshot?.RecentTelemetryCount ?? 0)</div>
+        <div class="kpi-label">Telemetry (5 min)</div>
+    </div>
+</div>
+
+@* ── Device Cards ─────────────────────────────────────────── *@
+<h2 class="section-heading">Device Fleet</h2>
+
+@if (Sim.Devices.Count == 0)
+{
+    <p class="empty-state">No devices. Click <strong>Start Simulation</strong> to begin.</p>
+}
+else
+{
+    <div class="device-grid">
+        @foreach (var device in Sim.Devices)
+        {
+            var statusClass = device.ForceOffline ? "card-offline"
+                : device.HighWaterAlarm ? "card-alarm"
+                : "card-normal";
+
+            <div class="device-card @statusClass">
+                <div class="card-header">
+                    <span class="serial">@device.SerialNumber</span>
+                    <span class="device-status-dot @(device.ForceOffline ? "dot-offline" : device.HighWaterAlarm ? "dot-alarm" : "dot-ok")"></span>
+                </div>
+                <div class="card-body">
+                    <div class="reading"><span class="label">Voltage</span><span class="value">@device.PanelVoltage.ToString("F1") V</span></div>
+                    <div class="reading"><span class="label">Current</span><span class="value">@device.PumpCurrent.ToString("F1") A</span></div>
+                    <div class="reading"><span class="label">Pump</span><span class="value pump-@(device.PumpRunning ? "on" : "off")">@(device.PumpRunning ? "RUNNING" : "OFF")</span></div>
+                    <div class="reading"><span class="label">HW Alarm</span><span class="value @(device.HighWaterAlarm ? "val-alarm" : "")">@(device.HighWaterAlarm ? "YES" : "No")</span></div>
+                    <div class="reading"><span class="label">Temp</span><span class="value">@device.TemperatureC.ToString("F1") °C</span></div>
+                    <div class="reading"><span class="label">Signal</span><span class="value">@device.SignalRssi dBm</span></div>
+                    <div class="reading"><span class="label">Runtime</span><span class="value">@device.RuntimeSeconds s</span></div>
+                </div>
+                <div class="card-actions">
+                    @if (!device.ForceHighWater)
+                    {
+                        <button class="btn btn-sm btn-warn" @onclick="() => Sim.TriggerHighWater(device.DeviceDbId)">Trigger HW Alarm</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-ok" @onclick="() => Sim.ClearHighWater(device.DeviceDbId)">Clear HW Alarm</button>
+                    }
+
+                    @if (!device.ForceOffline)
+                    {
+                        <button class="btn btn-sm btn-gray" @onclick="() => Sim.TriggerOffline(device.DeviceDbId)">Go Offline</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-ok" @onclick="() => Sim.BringOnline(device.DeviceDbId)">Bring Online</button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ── Active Alarms Table ─────────────────────────────────── *@
+@if (_snapshot?.Alarms.Count > 0)
+{
+    <h2 class="section-heading">Active Alarms</h2>
+    <table class="alarm-table">
+        <thead>
+            <tr>
+                <th>ID</th><th>Device</th><th>Type</th><th>Severity</th><th>Status</th><th>Started</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in _snapshot.Alarms)
+            {
+                <tr class="alarm-row sev-@a.Severity.ToLower()">
+                    <td>@a.Id</td>
+                    <td>@a.Serial</td>
+                    <td>@a.AlarmType</td>
+                    <td>@a.Severity</td>
+                    <td>@a.Status</td>
+                    <td>@a.StartedAt.ToString("HH:mm:ss")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@* ── Event Log ───────────────────────────────────────────── *@
+<h2 class="section-heading">Event Log</h2>
+<div class="event-log">
+    @foreach (var entry in Sim.RecentLogs.Reverse())
+    {
+        <div class="log-entry">
+            <span class="log-time">@entry.Timestamp.ToString("HH:mm:ss")</span>
+            <span class="log-icon">@entry.Icon</span>
+            <span class="log-msg">@entry.Message</span>
+        </div>
+    }
+    @if (Sim.RecentLogs.Count == 0)
+    {
+        <p class="empty-state">Waiting for events...</p>
+    }
+</div>
+
+@code {
+    private int _deviceCount = 5;
+    private DashboardSnapshot? _snapshot;
+    private Timer? _refreshTimer;
+
+    protected override void OnInitialized()
+    {
+        Sim.OnStateChanged += StateHasChangedSafe;
+        _refreshTimer = new Timer(async _ => await RefreshSnapshotAsync(), null, 0, 2000);
+    }
+
+    private async Task StartSimulation()
+    {
+        await Sim.StartAsync(_deviceCount);
+        await RefreshSnapshotAsync();
+    }
+
+    private async Task StopSimulation()
+    {
+        await Sim.StopAsync();
+        await RefreshSnapshotAsync();
+    }
+
+    private async Task RefreshSnapshotAsync()
+    {
+        try
+        {
+            _snapshot = await Sim.GetSnapshotAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { /* component may be disposed */ }
+    }
+
+    private void StateHasChangedSafe()
+    {
+        try { InvokeAsync(StateHasChanged); } catch { }
+    }
+
+    public void Dispose()
+    {
+        Sim.OnStateChanged -= StateHasChangedSafe;
+        _refreshTimer?.Dispose();
+    }
+}
