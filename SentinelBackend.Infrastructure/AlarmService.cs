@@ -89,17 +89,7 @@ public class AlarmService : IAlarmService
             "Alarm raised: {AlarmType} (severity={Severity}) on device {DeviceId} — alarm {AlarmId}",
             alarmType, severity, deviceId, alarm.Id);
 
-        // Create a notification incident for the new alarm
-        try
-        {
-            await _notificationService.CreateIncidentForAlarmAsync(alarm, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Failed to create notification incident for alarm {AlarmId}",
-                alarm.Id);
-        }
+        await _notificationService.CreateIncidentForAlarmAsync(alarm, cancellationToken);
 
         return (alarm, true);
     }
@@ -135,17 +125,7 @@ public class AlarmService : IAlarmService
 
         _logger.LogInformation("Alarm {AlarmId} resolved", alarmId);
 
-        // Close notification incidents for the resolved alarm
-        try
-        {
-            await _notificationService.CloseIncidentsForAlarmAsync(alarm.Id, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Failed to close notification incidents for alarm {AlarmId}",
-                alarm.Id);
-        }
+        await _notificationService.CloseIncidentsForAlarmAsync(alarm.Id, cancellationToken);
 
         return alarm;
     }
@@ -188,20 +168,8 @@ public class AlarmService : IAlarmService
             "Auto-resolved {Count} {AlarmType} alarm(s) for device {DeviceId}",
             activeAlarms.Count, alarmType, deviceId);
 
-        // Close notification incidents for each resolved alarm
         foreach (var alarm in activeAlarms)
-        {
-            try
-            {
-                await _notificationService.CloseIncidentsForAlarmAsync(alarm.Id, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Failed to close notification incidents for alarm {AlarmId}",
-                    alarm.Id);
-            }
-        }
+            await _notificationService.CloseIncidentsForAlarmAsync(alarm.Id, cancellationToken);
 
         return activeAlarms.Count;
     }

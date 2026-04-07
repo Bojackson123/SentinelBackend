@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using SentinelBackend.Api.Services;
 using SentinelBackend.Api.Workers;
+using SentinelBackend.Infrastructure.Workers;
 using SentinelBackend.Application;
 using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Domain.Enums;

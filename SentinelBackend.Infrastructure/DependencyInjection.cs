@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SentinelBackend.Application.Dps;
 using SentinelBackend.Application.Interfaces;
+using SentinelBackend.Application.Notifications;
 using SentinelBackend.Application.Services;
 using SentinelBackend.Domain.Entities;
 using SentinelBackend.Infrastructure.Dps;
@@ -67,7 +68,16 @@ public static class DependencyInjection
         services.AddScoped<IDeviceRepository, DeviceRepository>();
         services.AddScoped<IAlarmService, AlarmService>();
         services.AddScoped<INotificationService, NotificationService>();
-        services.AddSingleton<INotificationDispatcher, LoggingNotificationDispatcher>();
+
+        // Notification options (Twilio / SendGrid credentials + test overrides)
+        services.Configure<NotificationOptions>(
+            configuration.GetSection(NotificationOptions.SectionName));
+
+        // Channel dispatchers — registered as INotificationDispatcher collection.
+        // SendGridEmailDispatcher handles Email; TwilioSmsDispatcher handles Sms.
+        // Both fall back gracefully when credentials are absent.
+        services.AddSingleton<INotificationDispatcher, SendGridEmailDispatcher>();
+        services.AddSingleton<INotificationDispatcher, TwilioSmsDispatcher>();
 
         // IoT Hub RegistryManager for twin updates
         services.AddSingleton(sp =>

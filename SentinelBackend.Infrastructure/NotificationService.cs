@@ -2,7 +2,9 @@ namespace SentinelBackend.Infrastructure;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SentinelBackend.Application.Interfaces;
+using SentinelBackend.Application.Notifications;
 using SentinelBackend.Domain.Entities;
 using SentinelBackend.Domain.Enums;
 using SentinelBackend.Infrastructure.Persistence;
@@ -11,14 +13,19 @@ public class NotificationService : INotificationService
 {
     private readonly SentinelDbContext _db;
     private readonly ILogger<NotificationService> _logger;
+    private readonly NotificationOptions _options;
 
     // Default max attempts per escalation level — will be configurable via options
     private const int DefaultMaxAttempts = 3;
 
-    public NotificationService(SentinelDbContext db, ILogger<NotificationService> logger)
+    public NotificationService(
+        SentinelDbContext db,
+        ILogger<NotificationService> logger,
+        IOptions<NotificationOptions> options)
     {
         _db = db;
         _logger = logger;
+        _options = options.Value;
     }
 
     public async Task<NotificationIncident?> CreateIncidentForAlarmAsync(
@@ -57,18 +64,36 @@ public class NotificationService : INotificationService
 
         _db.NotificationIncidents.Add(incident);
 
-        // Schedule the first delivery attempt.
-        // Recipient resolution is a placeholder — real logic depends on tenant type,
-        // escalation policy, and contact preferences (Phase 6 product decisions).
-        var recipient = ResolveInitialRecipient(alarm);
-        if (recipient is not null)
+        // Schedule first-attempt deliveries. TestEmailRecipient / TestSmsRecipient override
+        // placeholder addresses so the simulator can send real notifications without needing
+        // real contact data on every device record.
+        var emailRecipient = _options.TestEmailRecipient ?? ResolveInitialRecipient(alarm);
+        if (!string.IsNullOrWhiteSpace(emailRecipient))
         {
             _db.NotificationAttempts.Add(new NotificationAttempt
             {
                 NotificationIncident = incident,
-                Channel = NotificationChannel.Email, // default channel — configurable later
+                Channel = NotificationChannel.Email,
                 Status = NotificationStatus.Pending,
-                Recipient = recipient,
+                Recipient = emailRecipient,
+                AttemptNumber = 1,
+                EscalationLevel = 0,
+                ScheduledAt = now,
+                CreatedAt = now,
+            });
+        }
+
+        // SMS attempt — only created when a test/real recipient number is available.
+        // In production this will come from the contact preferences lookup.
+        var smsRecipient = _options.TestSmsRecipient;
+        if (!string.IsNullOrWhiteSpace(smsRecipient))
+        {
+            _db.NotificationAttempts.Add(new NotificationAttempt
+            {
+                NotificationIncident = incident,
+                Channel = NotificationChannel.Sms,
+                Status = NotificationStatus.Pending,
+                Recipient = smsRecipient,
                 AttemptNumber = 1,
                 EscalationLevel = 0,
                 ScheduledAt = now,

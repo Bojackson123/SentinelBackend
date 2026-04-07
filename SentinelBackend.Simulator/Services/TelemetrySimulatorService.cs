@@ -1,6 +1,8 @@
 namespace SentinelBackend.Simulator.Services;
 
 using System.Collections.Concurrent;
+using IoTHubDevice = Microsoft.Azure.Devices.Device;
+using IoTHubRegistryManager = Microsoft.Azure.Devices.RegistryManager;
 using Microsoft.EntityFrameworkCore;
 using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Domain.Entities;
@@ -13,6 +15,10 @@ using SentinelBackend.Infrastructure.Persistence;
 /// </summary>
 public class TelemetrySimulatorService : IDisposable
 {
+    private const string SimulatorHardwareRevision = "sim-v1.0";
+    private const string SimulatorFirmwareVersion = "1.0.0-sim";
+    private const string SimulatorAssignedBy = "simulator-tech";
+
     private readonly IDbContextFactory<SentinelDbContext> _dbFactory;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TelemetrySimulatorService> _logger;
@@ -71,17 +77,26 @@ public class TelemetrySimulatorService : IDisposable
 
         await using var db = await _dbFactory.CreateDbContextAsync();
 
-        var deviceIds = await db.Devices
+        var simulatorDevices = await db.Devices
             .IgnoreQueryFilters()
-            .Where(d => d.SerialNumber.StartsWith("SIM-"))
-            .Select(d => d.Id)
+            .Where(d => d.SerialNumber.StartsWith("SIM-") || d.HardwareRevision == SimulatorHardwareRevision)
+            .Select(d => new { d.Id, d.DeviceId, d.SerialNumber })
             .ToListAsync();
+
+        var deviceIds = simulatorDevices.Select(d => d.Id).ToList();
 
         if (deviceIds.Count == 0)
         {
             Log("🧹 Clear data", "No simulator data found");
             return;
         }
+
+        var iotHubDeviceIds = simulatorDevices
+            .Select(d => string.IsNullOrWhiteSpace(d.DeviceId) ? d.SerialNumber : d.DeviceId!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        await RemoveFromIoTHubAsync(iotHubDeviceIds);
 
         // Delete in dependency order — notification tables may not exist yet (Phase 6 migration)
         var alarmIds = await db.Alarms
@@ -91,31 +106,23 @@ public class TelemetrySimulatorService : IDisposable
 
         if (alarmIds.Count > 0)
         {
-            try
-            {
-                await db.NotificationAttempts
-                    .Where(na => db.NotificationIncidents
-                        .Where(ni => alarmIds.Contains(ni.AlarmId))
-                        .Select(ni => ni.Id)
-                        .Contains(na.NotificationIncidentId))
-                    .ExecuteDeleteAsync();
-
-                await db.EscalationEvents
-                    .Where(e => db.NotificationIncidents
-                        .Where(ni => alarmIds.Contains(ni.AlarmId))
-                        .Select(ni => ni.Id)
-                        .Contains(e.NotificationIncidentId))
-                    .ExecuteDeleteAsync();
-
-                await db.NotificationIncidents
+            await db.NotificationAttempts
+                .Where(na => db.NotificationIncidents
                     .Where(ni => alarmIds.Contains(ni.AlarmId))
-                    .ExecuteDeleteAsync();
-            }
-            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 208)
-            {
-                // Notification tables not yet migrated — skip
-                _logger.LogWarning("Notification tables not found, skipping cleanup");
-            }
+                    .Select(ni => ni.Id)
+                    .Contains(na.NotificationIncidentId))
+                .ExecuteDeleteAsync();
+
+            await db.EscalationEvents
+                .Where(e => db.NotificationIncidents
+                    .Where(ni => alarmIds.Contains(ni.AlarmId))
+                    .Select(ni => ni.Id)
+                    .Contains(e.NotificationIncidentId))
+                .ExecuteDeleteAsync();
+
+            await db.NotificationIncidents
+                .Where(ni => alarmIds.Contains(ni.AlarmId))
+                .ExecuteDeleteAsync();
         }
 
         await db.TelemetryHistory.Where(t => deviceIds.Contains(t.DeviceId)).ExecuteDeleteAsync();
@@ -375,69 +382,225 @@ public class TelemetrySimulatorService : IDisposable
             await db.SaveChangesAsync();
         }
 
-        // Find existing sim devices or create new ones
+        // Find existing simulator devices by marker revision (and legacy SIM serials)
         var existingDevices = await db.Devices
             .IgnoreQueryFilters()
-            .Where(d => d.SerialNumber.StartsWith("SIM-"))
+            .Where(d => d.HardwareRevision == SimulatorHardwareRevision || d.SerialNumber.StartsWith("SIM-"))
             .OrderBy(d => d.SerialNumber)
             .Take(count)
             .ToListAsync();
 
         var toCreate = count - existingDevices.Count;
-        var nextIndex = existingDevices.Count + 1;
 
-        for (int i = 0; i < toCreate; i++)
+        if (toCreate > 0)
         {
-            var idx = nextIndex + i;
-            var device = new Device
-            {
-                SerialNumber = $"SIM-{idx:D4}",
-                DeviceId = $"sim-device-{idx:D4}",
-                HardwareRevision = "sim-v1.0",
-                FirmwareVersion = "1.0.0-sim",
-                Status = DeviceStatus.Active,
-                ProvisionedAt = DateTime.UtcNow,
-                ManufacturedAt = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
-            db.Devices.Add(device);
-            await db.SaveChangesAsync();
+            using var scope = _scopeFactory.CreateScope();
+            var manufacturingService = scope.ServiceProvider.GetRequiredService<IManufacturingBatchService>();
 
-            // Create assignment
-            var assignment = new DeviceAssignment
-            {
-                DeviceId = device.Id,
-                SiteId = site.Id,
-                AssignedAt = DateTime.UtcNow,
-                AssignedByUserId = "simulator",
-            };
-            db.DeviceAssignments.Add(assignment);
-            await db.SaveChangesAsync();
+            var batch = await manufacturingService.GenerateBatchAsync(
+                toCreate,
+                SimulatorHardwareRevision);
 
-            existingDevices.Add(device);
+            var serials = batch.Devices.Select(d => d.SerialNumber).ToArray();
+            var createdDevices = await db.Devices
+                .IgnoreQueryFilters()
+                .Where(d => serials.Contains(d.SerialNumber))
+                .ToListAsync();
+
+            foreach (var created in createdDevices)
+            {
+                created.FirmwareVersion ??= SimulatorFirmwareVersion;
+                created.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await db.SaveChangesAsync();
+            existingDevices.AddRange(createdDevices);
+
+            Log("🏭 Manufactured", $"Created {createdDevices.Count} new devices");
         }
 
-        // Build in-memory state for all devices
         foreach (var d in existingDevices)
+        {
+            d.FirmwareVersion ??= SimulatorFirmwareVersion;
+
+            if (d.Status == DeviceStatus.Manufactured)
+            {
+                await SimulateFirstBootDpsAsync(d.SerialNumber);
+                await db.Entry(d).ReloadAsync();
+            }
+
+            if (!string.IsNullOrWhiteSpace(d.DeviceId))
+            {
+                await EnsureIoTHubDeviceAsync(d.DeviceId!);
+            }
+
+            await EnsureAssignedAsync(db, d, site.Id);
+        }
+
+        await db.SaveChangesAsync();
+
+        // Build in-memory state for all selected devices
+        foreach (var d in existingDevices.OrderBy(d => d.SerialNumber).Take(count))
         {
             var assignment = await db.DeviceAssignments
                 .Where(a => a.DeviceId == d.Id && a.UnassignedAt == null)
                 .FirstOrDefaultAsync();
+
+            if (assignment is null)
+            {
+                continue;
+            }
+
+            var assignmentSite = await db.Sites
+                .Where(s => s.Id == assignment.SiteId)
+                .Select(s => new { s.Id, s.CustomerId })
+                .FirstOrDefaultAsync();
+
+            if (assignmentSite is null)
+            {
+                continue;
+            }
+
+            var assignmentCustomer = await db.Customers
+                .Where(c => c.Id == assignmentSite.CustomerId)
+                .Select(c => new { c.CompanyId })
+                .FirstOrDefaultAsync();
+
+            if (assignmentCustomer is null)
+            {
+                continue;
+            }
+
+            if (assignmentCustomer.CompanyId is null)
+            {
+                continue;
+            }
 
             _devices[d.Id] = new SimulatedDevice
             {
                 DeviceDbId = d.Id,
                 SerialNumber = d.SerialNumber,
                 IoTDeviceId = d.DeviceId ?? d.SerialNumber,
-                CompanyId = company.Id,
-                CustomerId = customer.Id,
-                SiteId = site.Id,
+                CompanyId = assignmentCustomer.CompanyId.Value,
+                CustomerId = assignmentSite.CustomerId,
+                SiteId = assignmentSite.Id,
                 AssignmentId = assignment?.Id,
             };
         }
 
-        Log("🏭 Devices seeded", $"{_devices.Count} devices ready ({toCreate} new)");
+        Log("🏭 Devices seeded", $"{_devices.Count} devices ready ({toCreate} manufactured this run)");
+    }
+
+    private async Task SimulateFirstBootDpsAsync(string serialNumber)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var dpsAllocation = scope.ServiceProvider.GetRequiredService<IDpsAllocationService>();
+
+        await dpsAllocation.AllocateAsync(serialNumber, []);
+        Log("☁️ DPS allocated", $"{serialNumber} moved to Unprovisioned");
+    }
+
+    private async Task EnsureAssignedAsync(SentinelDbContext db, Device device, int siteId)
+    {
+        var activeAssignment = await db.DeviceAssignments
+            .FirstOrDefaultAsync(a => a.DeviceId == device.Id && a.UnassignedAt == null);
+
+        if (activeAssignment is not null)
+        {
+            if (device.Status == DeviceStatus.Unprovisioned || device.Status == DeviceStatus.Manufactured)
+            {
+                device.Status = DeviceStatus.Assigned;
+                device.UpdatedAt = DateTime.UtcNow;
+                Log("🧰 Installed", $"{device.SerialNumber} marked Assigned");
+            }
+
+            return;
+        }
+
+        var assignment = new DeviceAssignment
+        {
+            DeviceId = device.Id,
+            SiteId = siteId,
+            AssignedAt = DateTime.UtcNow,
+            AssignedByUserId = SimulatorAssignedBy,
+        };
+
+        db.DeviceAssignments.Add(assignment);
+
+        if (device.Status == DeviceStatus.Unprovisioned || device.Status == DeviceStatus.Manufactured)
+        {
+            device.Status = DeviceStatus.Assigned;
+        }
+
+        device.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        Log("🧰 Installed", $"{device.SerialNumber} assigned to Simulator Site");
+    }
+
+    private async Task EnsureIoTHubDeviceAsync(string deviceId)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var registryManager = scope.ServiceProvider.GetService<IoTHubRegistryManager>();
+
+        if (registryManager is null)
+        {
+            Log("⚠️ IoT Hub skipped", "RegistryManager is not configured");
+            return;
+        }
+
+        try
+        {
+            var existing = await registryManager.GetDeviceAsync(deviceId);
+            if (existing is null)
+            {
+                await registryManager.AddDeviceAsync(new IoTHubDevice(deviceId));
+                Log("☁️ IoT identity created", deviceId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed ensuring IoT Hub identity for {DeviceId}", deviceId);
+            Log("❌ IoT Hub error", $"{deviceId}: {ex.Message}");
+        }
+    }
+
+    private async Task RemoveFromIoTHubAsync(IReadOnlyCollection<string> deviceIds)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var registryManager = scope.ServiceProvider.GetService<IoTHubRegistryManager>();
+
+        if (registryManager is null)
+        {
+            Log("⚠️ IoT Hub cleanup skipped", "RegistryManager is not configured");
+            return;
+        }
+
+        var removed = 0;
+        var missing = 0;
+        var failed = 0;
+
+        foreach (var deviceId in deviceIds)
+        {
+            try
+            {
+                var existing = await registryManager.GetDeviceAsync(deviceId);
+                if (existing is null)
+                {
+                    missing++;
+                    continue;
+                }
+
+                await registryManager.RemoveDeviceAsync(deviceId);
+                removed++;
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                _logger.LogWarning(ex, "Failed removing IoT Hub device {DeviceId}", deviceId);
+            }
+        }
+
+        Log("☁️ IoT Hub cleanup", $"Removed={removed}, Missing={missing}, Failed={failed}");
     }
 
     // ── Helpers ──────────────────────────────────────────────────

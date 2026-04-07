@@ -1,10 +1,12 @@
-namespace SentinelBackend.Api.Tests;
+﻿namespace SentinelBackend.Api.Tests;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentinelBackend.Domain.Entities;
 using SentinelBackend.Domain.Enums;
 using SentinelBackend.Infrastructure;
+using Microsoft.Extensions.Options;
+using SentinelBackend.Application.Notifications;
 using SentinelBackend.Tests.Shared;
 using Xunit;
 
@@ -18,7 +20,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var service = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var service = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
 
         var alarm = await CreateAlarmAsync(db, seed);
 
@@ -45,7 +47,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var service = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var service = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var alarm = await CreateAlarmAsync(db, seed);
 
         var incident1 = await service.CreateIncidentForAlarmAsync(alarm);
@@ -64,7 +66,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var service = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var service = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var alarm = await CreateAlarmAsync(db, seed);
 
         var incident = await service.CreateIncidentForAlarmAsync(alarm);
@@ -92,7 +94,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var service = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var service = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var alarm = await CreateAlarmAsync(db, seed);
 
         await service.CreateIncidentForAlarmAsync(alarm);
@@ -119,7 +121,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var service = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var service = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var alarm = await CreateAlarmAsync(db, seed);
 
         var incident = await service.CreateIncidentForAlarmAsync(alarm);
@@ -147,7 +149,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var service = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var service = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var alarm = await CreateAlarmAsync(db, seed);
 
         var incident = await service.CreateIncidentForAlarmAsync(alarm);
@@ -185,7 +187,7 @@ public class NotificationServiceTests
         var (alarm, _) = await alarmService.RaiseAlarmAsync(
             seed.Device.Id, "HighWater", AlarmSeverity.Critical, AlarmSourceType.TelemetryFallback);
 
-        var notifService = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var notifService = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var incident = await notifService.CreateIncidentForAlarmAsync(alarm);
 
         Assert.NotNull(incident);
@@ -202,7 +204,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var notifService = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var notifService = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var alarmService = new AlarmService(
             db, NullLogger<AlarmService>.Instance, notifService);
 
@@ -226,7 +228,7 @@ public class NotificationServiceTests
         seed.Device.Status = DeviceStatus.Active;
         await db.SaveChangesAsync();
 
-        var notifService = new NotificationService(db, NullLogger<NotificationService>.Instance);
+        var notifService = new NotificationService(db, NullLogger<NotificationService>.Instance, Options.Create(new NotificationOptions()));
         var alarmService = new AlarmService(
             db, NullLogger<AlarmService>.Instance, notifService);
 
@@ -266,3 +268,4 @@ public class NotificationServiceTests
         return alarm;
     }
 }
+

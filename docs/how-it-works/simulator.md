@@ -1,10 +1,10 @@
 # Simulator
 
-The **SentinelBackend.Simulator** project is a standalone Blazor Server application that generates realistic telemetry from a fleet of virtual grinder-pump devices. It writes directly to the same SQL database used by the API, so every record it creates is visible through the normal REST endpoints, alarm evaluations, and retention workers.
+The **SentinelBackend.Simulator** project is a standalone Blazor Server application that generates realistic telemetry from a fleet of virtual grinder-pump devices. It now follows the same lifecycle as production devices: manufacturing, first-boot DPS allocation, and technician assignment before telemetry generation. It writes to the same SQL database used by the API, so every record it creates is visible through the normal REST endpoints, alarm evaluations, and retention workers.
 
 ## Why it exists
 
-- Provides a visual, interactive way to exercise the full data pipeline without physical hardware or Azure IoT Hub.
+- Provides a visual, interactive way to exercise the full data pipeline without physical hardware while still simulating manufacturing and DPS/IoT Hub provisioning.
 - Lets you trigger alarm scenarios (high-water, device offline) on demand and watch the system react in real time.
 - Useful for demos, development, and manual smoke testing.
 
@@ -22,9 +22,11 @@ The dashboard opens at **https://localhost:7299** (HTTP: 5299).
 |---|---|
 | SQL Server | Same connection string as the API (resolved via Key Vault or `SqlConnectionString` config) |
 | Azure Key Vault | `KeyVaultUrl` in `appsettings.json` — same vault the API uses |
+| Azure DPS | `DpsConnectionString`, `DpsIotHubHostName`, `DpsEnrollmentPrimaryKey` |
+| Azure IoT Hub service access | `IoTHubServiceConnectionString` (or `IoTHubConnectionString`) |
 | .NET 9 SDK | Must be installed locally |
 
-No Azure IoT Hub, Event Hubs, or Blob Storage connection is needed — the simulator bypasses those services and writes directly to the database.
+Event Hubs and Blob Storage are not required.
 
 ## Architecture
 
@@ -55,24 +57,39 @@ No Azure IoT Hub, Event Hubs, or Blob Storage connection is needed — the simul
 
 | Component | Role |
 |---|---|
-| `Program.cs` | Configures Blazor Server, Key Vault, EF Core `DbContextFactory`, domain services, and the simulator singleton |
-| `TelemetrySimulatorService` | Singleton engine — seeds devices, runs the tick loop, writes telemetry, evaluates alarms |
+| `Program.cs` | Configures Blazor Server, Key Vault, EF Core, manufacturing + DPS + IoT Hub services, and the simulator singleton |
+| `TelemetrySimulatorService` | Singleton engine — manufactures devices, simulates DPS first boot, simulates assignment, runs the tick loop, writes telemetry, evaluates alarms |
 | `SimulatedDevice` | In-memory model holding live telemetry values and scenario flags per device |
 | `Home.razor` | Interactive dashboard — KPI counters, device cards, alarm table, event log |
 | `app.css` | Dark-theme styling for the dashboard |
 
 ## How the simulation works
 
-### 1. Seeding
+### 1. Manufacturing stage
 
 When you click **Start Simulation**, the service calls `SeedDevicesAsync(count)`:
 
 1. Creates (or finds) a **Simulator Corp** company, **Sim User** customer, and **Simulator Site**.
-2. Creates `count` devices with serial numbers `SIM-0001` through `SIM-XXXX` (reuses existing ones if present).
-3. Creates a `DeviceAssignment` linking each device to the simulator site.
-4. Builds an in-memory `SimulatedDevice` dictionary keyed by database ID.
+2. Creates missing devices through `IManufacturingBatchService.GenerateBatchAsync(...)`.
+3. New devices are inserted in `Devices` with status **Manufactured**.
 
-### 2. Tick loop
+### 2. First boot provisioning stage (DPS)
+
+For each manufactured simulator device:
+
+1. Calls `IDpsAllocationService.AllocateAsync(...)` to simulate first boot.
+2. Device transitions from **Manufactured** to **Unprovisioned** and receives `DeviceId`.
+3. Simulator ensures the IoT Hub device identity exists via `RegistryManager`.
+
+### 3. Installation stage
+
+For each unprovisioned simulator device:
+
+1. Creates an active `DeviceAssignment` to **Simulator Site**.
+2. Device status transitions to **Assigned** to emulate field installation.
+3. In-memory `SimulatedDevice` entries are built from active assignments.
+
+### 4. Tick loop
 
 A background task runs every **3 seconds**. For each online device:
 
@@ -89,7 +106,7 @@ A background task runs every **3 seconds**. For each online device:
 
 4. Fires `OnStateChanged` so the Blazor dashboard re-renders.
 
-### 3. Dashboard refresh
+### 5. Dashboard refresh
 
 The `Home.razor` page subscribes to `OnStateChanged` and also runs a 2-second timer that calls `GetSnapshotAsync()`. The snapshot queries the database for:
 
@@ -148,7 +165,7 @@ Running the simulator populates these tables:
 | `Companies` | 1 ("Simulator Corp") |
 | `Customers` | 1 ("Sim User") |
 | `Sites` | 1 ("Simulator Site") |
-| `Devices` | N (SIM-0001 … SIM-XXXX) |
+| `Devices` | N simulator-marked rows (hardware revision `sim-v1.0`) |
 | `DeviceAssignments` | N |
 | `TelemetryHistory` | Grows continuously (~N rows every 3 s) |
 | `LatestDeviceStates` | N (upserted each tick) |
@@ -156,19 +173,21 @@ Running the simulator populates these tables:
 | `Alarms` | Created/resolved by scenario triggers |
 | `NotificationIncidents` | Created when alarms fire (if notification rules exist) |
 
-> **Tip:** Simulator data uses serial numbers starting with `SIM-`, making it easy to identify and clean up.
+> **Tip:** Simulator data is tagged with hardware revision `sim-v1.0` (legacy runs may also have `SIM-` serials).
 
 ## Cleanup
 
-To remove all simulator data, delete rows where the device serial starts with `SIM-`:
+The **Clear All Data** action in the dashboard removes simulator data and also removes simulator devices from IoT Hub.
+
+Manual SQL cleanup (if needed) can target simulator markers:
 
 ```sql
-DELETE FROM TelemetryHistory WHERE DeviceId IN (SELECT Id FROM Devices WHERE SerialNumber LIKE 'SIM-%');
-DELETE FROM LatestDeviceStates WHERE DeviceId IN (SELECT Id FROM Devices WHERE SerialNumber LIKE 'SIM-%');
-DELETE FROM DeviceConnectivityStates WHERE DeviceId IN (SELECT Id FROM Devices WHERE SerialNumber LIKE 'SIM-%');
-DELETE FROM Alarms WHERE DeviceId IN (SELECT Id FROM Devices WHERE SerialNumber LIKE 'SIM-%');
-DELETE FROM DeviceAssignments WHERE DeviceId IN (SELECT Id FROM Devices WHERE SerialNumber LIKE 'SIM-%');
-DELETE FROM Devices WHERE SerialNumber LIKE 'SIM-%';
+DELETE FROM TelemetryHistory WHERE DeviceId IN (SELECT Id FROM Devices WHERE HardwareRevision = 'sim-v1.0' OR SerialNumber LIKE 'SIM-%');
+DELETE FROM LatestDeviceStates WHERE DeviceId IN (SELECT Id FROM Devices WHERE HardwareRevision = 'sim-v1.0' OR SerialNumber LIKE 'SIM-%');
+DELETE FROM DeviceConnectivityStates WHERE DeviceId IN (SELECT Id FROM Devices WHERE HardwareRevision = 'sim-v1.0' OR SerialNumber LIKE 'SIM-%');
+DELETE FROM Alarms WHERE DeviceId IN (SELECT Id FROM Devices WHERE HardwareRevision = 'sim-v1.0' OR SerialNumber LIKE 'SIM-%');
+DELETE FROM DeviceAssignments WHERE DeviceId IN (SELECT Id FROM Devices WHERE HardwareRevision = 'sim-v1.0' OR SerialNumber LIKE 'SIM-%');
+DELETE FROM Devices WHERE HardwareRevision = 'sim-v1.0' OR SerialNumber LIKE 'SIM-%';
 DELETE FROM Sites WHERE Name = 'Simulator Site';
 DELETE FROM Customers WHERE Email = 'sim-customer@sentinel.test';
 DELETE FROM Companies WHERE Name = 'Simulator Corp';
