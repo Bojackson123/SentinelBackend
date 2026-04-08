@@ -112,6 +112,9 @@ public class SitesController : ControllerBase
         if (site is null)
             return NotFound();
 
+        var deviceCount = await _db.DeviceAssignments.AsNoTracking()
+            .CountAsync(da => da.SiteId == siteId && da.UnassignedAt == null, cancellationToken);
+
         return Ok(new
         {
             site.Id,
@@ -127,6 +130,10 @@ public class SitesController : ControllerBase
             site.Longitude,
             site.Timezone,
             site.CreatedAt,
+            CustomerName = site.Customer.FirstName + " " + site.Customer.LastName,
+            CustomerEmail = site.Customer.Email,
+            CustomerPhone = site.Customer.Phone,
+            DeviceCount = deviceCount,
         });
     }
 

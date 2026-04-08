@@ -426,6 +426,8 @@ public class TelemetrySimulatorService : IDisposable
                 Name = "Simulator Corp",
                 ContactEmail = "sim@sentinel.test",
                 BillingEmail = "billing@sentinel.test",
+                FocalPointName = "Sim User",
+                ContactPhone = "+1-234-567-8900",
                 SubscriptionStatus = SubscriptionStatus.Active,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
@@ -445,6 +447,7 @@ public class TelemetrySimulatorService : IDisposable
                 FirstName = "Sim",
                 LastName = "User",
                 Email = "sim-customer@sentinel.test",
+                Phone = "+1-234-456-7899",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
             };

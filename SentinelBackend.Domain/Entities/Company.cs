@@ -7,6 +7,7 @@ public class Company
     public int Id { get; set; }
     public string Name { get; set; } = default!;
     public string ContactEmail { get; set; } = default!;
+    public string? FocalPointName { get; set; }
     public string? ContactPhone { get; set; }
     public string BillingEmail { get; set; } = default!;
     public string? StripeCustomerId { get; set; }

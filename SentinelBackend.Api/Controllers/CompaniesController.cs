@@ -44,6 +44,9 @@ public class CompaniesController : ControllerBase
                 SubscriptionStatus = c.SubscriptionStatus.ToString(),
                 CustomerCount = c.Customers.Count,
                 SiteCount = c.Customers.SelectMany(cu => cu.Sites).Count(s => !s.IsDeleted),
+                DeviceCount = c.Customers.SelectMany(cu => cu.Sites)
+                    .SelectMany(s => s.DeviceAssignments)
+                    .Count(da => da.UnassignedAt == null),
                 c.CreatedAt,
             })
             .ToListAsync(cancellationToken);
@@ -66,9 +69,13 @@ public class CompaniesController : ControllerBase
                 c.ContactEmail,
                 c.ContactPhone,
                 c.BillingEmail,
+                c.FocalPointName,
                 SubscriptionStatus = c.SubscriptionStatus.ToString(),
                 CustomerCount = c.Customers.Count,
                 SiteCount = c.Customers.SelectMany(cu => cu.Sites).Count(s => !s.IsDeleted),
+                DeviceCount = c.Customers.SelectMany(cu => cu.Sites)
+                    .SelectMany(s => s.DeviceAssignments)
+                    .Count(da => da.UnassignedAt == null),
                 c.CreatedAt,
             })
             .FirstOrDefaultAsync(cancellationToken);
