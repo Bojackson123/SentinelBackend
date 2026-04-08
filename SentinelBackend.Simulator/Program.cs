@@ -66,6 +66,10 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddScoped<IDeviceTwinService, DeviceTwinService>();
 
 // ── Domain services (for alarm evaluation during simulation) ———— //
+// NOTE: Alarm evaluation and notification creation are now handled by the
+// TelemetryIngestionWorker in the Ingestion host. The simulator sends D2C
+// messages through IoT Hub, which flow through the full production pipeline.
+// We still register AlarmService/NotificationService so DPS allocation works.
 builder.Services.AddScoped<IAlarmService, AlarmService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 

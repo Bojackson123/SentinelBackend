@@ -265,4 +265,61 @@ public class CommandExecutorTests
         Assert.Equal(CommandStatus.Failed, command.Status);
         Assert.Contains("no IoT Hub device ID", command.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task ProcessSingleCommand_Success()
+    {
+        var (scopeFactory, dbName, fakeMethod) = CreateServices();
+        int commandId;
+
+        using (var setupDb = OpenDb(dbName))
+        {
+            var seed = await TestDb.SeedFullHierarchyAsync(setupDb);
+            seed.Device.Status = DeviceStatus.Active;
+            await setupDb.SaveChangesAsync();
+
+            var cmd = new CommandLog
+            {
+                DeviceId = seed.Device.Id,
+                CommandType = "ping",
+                Status = CommandStatus.Pending,
+                RequestedByUserId = "admin-1",
+                RequestedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            setupDb.CommandLogs.Add(cmd);
+            await setupDb.SaveChangesAsync();
+            commandId = cmd.Id;
+        }
+
+        var worker = new CommandExecutorWorker(
+            scopeFactory,
+            NullLogger<CommandExecutorWorker>.Instance,
+            CreateWorkerConfiguration()
+        );
+
+        // Test the Service Bus path directly
+        await worker.ProcessSingleCommandAsync(commandId);
+
+        using var assertDb = OpenDb(dbName);
+        var command = await assertDb.CommandLogs.FirstAsync();
+        Assert.Equal(CommandStatus.Succeeded, command.Status);
+        Assert.Single(fakeMethod.Invocations);
+    }
+
+    [Fact]
+    public async Task ProcessSingleCommand_NonExistentId_NoException()
+    {
+        var (scopeFactory, _, _) = CreateServices();
+
+        var worker = new CommandExecutorWorker(
+            scopeFactory,
+            NullLogger<CommandExecutorWorker>.Instance,
+            CreateWorkerConfiguration()
+        );
+
+        // Command ID 999 doesn't exist — should silently skip
+        await worker.ProcessSingleCommandAsync(999);
+    }
 }

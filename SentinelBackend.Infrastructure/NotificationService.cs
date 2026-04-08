@@ -14,6 +14,7 @@ public class NotificationService : INotificationService
     private readonly SentinelDbContext _db;
     private readonly ILogger<NotificationService> _logger;
     private readonly NotificationOptions _options;
+    private readonly IMessagePublisher? _messagePublisher;
 
     // Default max attempts per escalation level — will be configurable via options
     private const int DefaultMaxAttempts = 3;
@@ -21,11 +22,13 @@ public class NotificationService : INotificationService
     public NotificationService(
         SentinelDbContext db,
         ILogger<NotificationService> logger,
-        IOptions<NotificationOptions> options)
+        IOptions<NotificationOptions> options,
+        IMessagePublisher? messagePublisher = null)
     {
         _db = db;
         _logger = logger;
         _options = options.Value;
+        _messagePublisher = messagePublisher;
     }
 
     public async Task<NotificationIncident?> CreateIncidentForAlarmAsync(
@@ -67,10 +70,12 @@ public class NotificationService : INotificationService
         // Schedule first-attempt deliveries. TestEmailRecipient / TestSmsRecipient override
         // placeholder addresses so the simulator can send real notifications without needing
         // real contact data on every device record.
+        var attempts = new List<NotificationAttempt>();
+
         var emailRecipient = _options.TestEmailRecipient ?? ResolveInitialRecipient(alarm);
         if (!string.IsNullOrWhiteSpace(emailRecipient))
         {
-            _db.NotificationAttempts.Add(new NotificationAttempt
+            var emailAttempt = new NotificationAttempt
             {
                 NotificationIncident = incident,
                 Channel = NotificationChannel.Email,
@@ -80,7 +85,9 @@ public class NotificationService : INotificationService
                 EscalationLevel = 0,
                 ScheduledAt = now,
                 CreatedAt = now,
-            });
+            };
+            _db.NotificationAttempts.Add(emailAttempt);
+            attempts.Add(emailAttempt);
         }
 
         // SMS attempt — only created when a test/real recipient number is available.
@@ -88,7 +95,7 @@ public class NotificationService : INotificationService
         var smsRecipient = _options.TestSmsRecipient;
         if (!string.IsNullOrWhiteSpace(smsRecipient))
         {
-            _db.NotificationAttempts.Add(new NotificationAttempt
+            var smsAttempt = new NotificationAttempt
             {
                 NotificationIncident = incident,
                 Channel = NotificationChannel.Sms,
@@ -98,10 +105,24 @@ public class NotificationService : INotificationService
                 EscalationLevel = 0,
                 ScheduledAt = now,
                 CreatedAt = now,
-            });
+            };
+            _db.NotificationAttempts.Add(smsAttempt);
+            attempts.Add(smsAttempt);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Publish Service Bus messages for immediate dispatch
+        if (_messagePublisher is not null)
+        {
+            foreach (var attempt in attempts)
+            {
+                await _messagePublisher.PublishAsync(
+                    Workers.NotificationDispatchWorker.QueueName,
+                    new Workers.NotificationMessage(attempt.Id),
+                    cancellationToken: cancellationToken);
+            }
+        }
 
         _logger.LogInformation(
             "Notification incident {IncidentId} created for alarm {AlarmId} (device {DeviceId})",
@@ -227,9 +248,10 @@ public class NotificationService : INotificationService
         // Schedule next attempt at the new escalation level.
         // Recipient resolution for escalation levels is a placeholder.
         var recipient = ResolveEscalationRecipient(incident, toLevel);
+        NotificationAttempt? escalationAttempt = null;
         if (recipient is not null)
         {
-            _db.NotificationAttempts.Add(new NotificationAttempt
+            escalationAttempt = new NotificationAttempt
             {
                 NotificationIncident = incident,
                 Channel = NotificationChannel.Email,
@@ -239,10 +261,19 @@ public class NotificationService : INotificationService
                 EscalationLevel = toLevel,
                 ScheduledAt = now,
                 CreatedAt = now,
-            });
+            };
+            _db.NotificationAttempts.Add(escalationAttempt);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (_messagePublisher is not null && escalationAttempt is not null)
+        {
+            await _messagePublisher.PublishAsync(
+                Workers.NotificationDispatchWorker.QueueName,
+                new Workers.NotificationMessage(escalationAttempt.Id),
+                cancellationToken: cancellationToken);
+        }
 
         _logger.LogInformation(
             "Notification incident {IncidentId} escalated from level {FromLevel} to {ToLevel}: {Reason}",

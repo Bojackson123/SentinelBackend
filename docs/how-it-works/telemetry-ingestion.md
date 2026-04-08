@@ -25,6 +25,8 @@ The worker host registers:
 | `BlobContainerClient` (checkpoints) | `StorageConnectionString` / `iot-checkpoints` | Stores partition offsets |
 | `BlobContainerClient` (raw archive) | `StorageConnectionString` / `raw-telemetry` | Archives raw JSON |
 | `IBlobArchiveService` → `BlobArchiveService` | `BlobContainerClient` | Abstraction over raw payload blob operations |
+| `ServiceBusClient` | `ServiceBusConnectionString` | Azure Service Bus client (optional; enables offline deadline scheduling) |
+| `IMessagePublisher` → `ServiceBusMessagePublisher` | `ServiceBusClient` | Message publishing abstraction (optional; registered when Service Bus is configured) |
 | `SentinelDbContext` | `SqlConnectionString` | EF Core with retry-on-failure |
 
 All secrets are loaded from Azure Key Vault via `AddAzureKeyVault`.
@@ -104,6 +106,28 @@ If `messageType == "lifecycle"` and `BootId` is present, `connectivity.LastBootI
 
 **Firmware version:**
 If the message contains a non-empty `FirmwareVersion`, `device.FirmwareVersion` is updated (any message type).
+
+### 10a. Offline Deadline Scheduling (Service Bus)
+When `IMessagePublisher` is registered (Service Bus is configured) and the device has `OfflineThresholdSeconds > 0`, the worker publishes a **scheduled** `OfflineCheckMessage` to the `offline-checks` queue:
+
+```
+Queue:          offline-checks
+Message:        { DeviceId, ExpectedAfter = receivedAtUtc }
+ScheduledAt:    receivedAtUtc + OfflineThresholdSeconds
+```
+
+When this message fires after the delay, `OfflineCheckWorker` in the API host evaluates whether newer telemetry arrived since `ExpectedAfter`. If not, the device is marked offline and a `DeviceOffline` alarm is raised. This replaces fleet-wide polling with a per-device event-driven approach.
+
+If the scheduled message publish fails, it is logged as a warning but does **not** block telemetry processing. The `OfflineMonitorWorker` acts as a safety net.
+
+### 10b. Auto-Resolve DeviceOffline Alarm
+Before resetting `IsOffline = false`, the worker captures `wasOffline = connectivity.IsOffline`. If `wasOffline` is true (the device was previously marked offline), it calls `IAlarmService.AutoResolveAlarmsAsync()` to resolve any active `DeviceOffline` alarms for the device:
+
+```
+Auto-resolved: device telemetry resumed
+```
+
+This provides immediate alarm resolution the moment a device sends telemetry, rather than waiting for the next OfflineMonitor sweep.
 
 ### 11. Telemetry-Fallback Alarm Detection (Phase 5)
 After persisting telemetry, the worker evaluates alarm conditions for `messageType == "telemetry"`:

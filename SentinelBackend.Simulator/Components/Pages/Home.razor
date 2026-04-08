@@ -33,15 +33,19 @@
     </div>
     <div class="kpi-card kpi-blue">
         <div class="kpi-value">@Sim.TotalMessagesSent</div>
-        <div class="kpi-label">Messages Sent</div>
+        <div class="kpi-label">D2C Sent</div>
     </div>
     <div class="kpi-card kpi-red">
         <div class="kpi-value">@(_snapshot?.ActiveAlarms ?? 0)</div>
         <div class="kpi-label">Active Alarms</div>
     </div>
+    <div class="kpi-card kpi-purple">
+        <div class="kpi-value">@Sim.TotalCommandsReceived</div>
+        <div class="kpi-label">Commands Received</div>
+    </div>
     <div class="kpi-card kpi-orange">
-        <div class="kpi-value">@Sim.TotalAlarmsRaised</div>
-        <div class="kpi-label">Total Alarms Raised</div>
+        <div class="kpi-value">@(_snapshot?.PendingCommands ?? 0)</div>
+        <div class="kpi-label">Pending Commands</div>
     </div>
     <div class="kpi-card kpi-gray">
         <div class="kpi-value">@(_snapshot?.OfflineDevices ?? 0)</div>
@@ -49,7 +53,7 @@
     </div>
     <div class="kpi-card kpi-teal">
         <div class="kpi-value">@(_snapshot?.RecentTelemetryCount ?? 0)</div>
-        <div class="kpi-label">Telemetry (5 min)</div>
+        <div class="kpi-label">Ingested (5 min)</div>
     </div>
 </div>
 
@@ -82,6 +86,10 @@ else
                     <div class="reading"><span class="label">Temp</span><span class="value">@device.TemperatureC.ToString("F1") °C</span></div>
                     <div class="reading"><span class="label">Signal</span><span class="value">@device.SignalRssi dBm</span></div>
                     <div class="reading"><span class="label">Runtime</span><span class="value">@device.RuntimeSeconds s</span></div>
+                    @if (device.LastCommandReceived is not null)
+                    {
+                        <div class="reading"><span class="label">Last Cmd</span><span class="value val-cmd">@device.LastCommandReceived</span></div>
+                    }
                 </div>
                 <div class="card-actions">
                     @if (!device.ForceHighWater)
@@ -186,7 +194,10 @@ else
             _snapshot = await Sim.GetSnapshotAsync();
             await InvokeAsync(StateHasChanged);
         }
-        catch { /* component may be disposed */ }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Dashboard] Snapshot error: {ex.Message}");
+        }
     }
 
     private void StateHasChangedSafe()

@@ -40,9 +40,10 @@ Domain  ←  Application  ←  Infrastructure
 ASP.NET Core Web API hosting:
 - REST controllers for devices, alarms, sites, assignments, manufacturing, DPS webhook, and auth
 - JWT Bearer authentication with role-based authorization policies
-- `CommandExecutorWorker` — a `BackgroundService` that polls for pending commands and executes IoT Hub direct methods
-- `OfflineMonitorWorker` — a `BackgroundService` that periodically scans device connectivity state and raises/resolves `DeviceOffline` alarms
-- `NotificationDispatchWorker` — a `BackgroundService` that processes pending notification attempts, handles retries with exponential backoff, and triggers escalation when max retries are exhausted
+- `CommandExecutorWorker` — a `BackgroundService` that executes IoT Hub direct methods for pending commands. Operates in **dual mode**: consumes from the `device-commands` Service Bus queue when configured, or falls back to SQL polling.
+- `OfflineCheckWorker` — a `BackgroundService` that evaluates per-device offline deadlines from the `offline-checks` Service Bus queue. Each message represents a scheduled check: "if no telemetry arrived by time X, mark offline." Only active when Service Bus is configured.
+- `OfflineMonitorWorker` — a `BackgroundService` that periodically sweeps device connectivity as a **safety net**. When Service Bus is configured, runs on a long interval (default 600s) to catch any devices the event-driven path missed. Uses optimized SQL query to only load devices needing state changes.
+- `NotificationDispatchWorker` — a `BackgroundService` that processes pending notification attempts, handles retries with exponential backoff, and triggers escalation when max retries are exhausted. Operates in **dual mode**: consumes from the `notifications` Service Bus queue when configured, or falls back to SQL polling.
 - `TelemetryRetentionWorker` — a `BackgroundService` that periodically purges expired `TelemetryHistory` rows (respecting archive safety gate) and old `FailedIngressMessages` in configurable batches
 - Scalar API reference UI in development mode
 - Secrets loaded from Azure Key Vault via `DefaultAzureCredential`
@@ -64,11 +65,12 @@ ASP.NET Core Web API hosting:
 | Azure IoT Hub | Device registry, twin management, direct methods, telemetry endpoint |
 | Azure DPS | Device provisioning with custom allocation webhook |
 | Azure Blob Storage | Event Hub checkpoints, raw telemetry archive |
+| Azure Service Bus | Event-driven command execution, notification dispatch, and offline detection (Standard SKU — requires scheduled messages) |
 | Application Insights | Logging and tracing (wired via standard .NET logging) |
 
 ## Configuration
 
-All secrets are stored in Azure Key Vault and loaded at startup. `appsettings.json` also contains the `CommandExecutor` and `Retention` configuration sections. `appsettings.Development.json` contains the Key Vault URL.
+All secrets are stored in Azure Key Vault and loaded at startup. `appsettings.json` also contains the `CommandExecutor`, `OfflineMonitor`, and `Retention` configuration sections. `appsettings.Development.json` contains the Key Vault URL.
 
 Retention configuration (`Retention` section in `appsettings.json`):
 - `HotRetentionDays` (90) — days to keep telemetry in hot SQL storage
@@ -88,6 +90,7 @@ Key Vault secrets used:
 - `DpsWebhookSecret` — Secret for validating DPS webhook calls
 - `JwtSigningKey` — HMAC-SHA256 signing key for JWT tokens
 - `JwtIssuer`, `JwtAudience` — JWT token validation parameters
+- `ServiceBusConnectionString` — Azure Service Bus connection string (optional; enables event-driven workers)
 
 ## Dependency Injection
 
@@ -109,3 +112,5 @@ All infrastructure services are registered in `Infrastructure/DependencyInjectio
 | `IManufacturingBatchService` → `ManufacturingBatchService` | Scoped | Batch device creation |
 | `ITenantContext` → `HttpTenantContext` | Scoped | Tenant scoping from JWT claims (Api only) |
 | `IBlobArchiveService` → `BlobArchiveService` | Singleton | Raw telemetry archiving, retrieval, and deletion (Api + Ingestion) |
+| `ServiceBusClient` | Singleton | Azure Service Bus client (registered only when `ServiceBusConnectionString` is configured) |
+| `IMessagePublisher` → `ServiceBusMessagePublisher` | Singleton | Message publishing abstraction (registered only when Service Bus is configured) |

@@ -1,11 +1,13 @@
 namespace SentinelBackend.Infrastructure;
 
+using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Azure.Devices;
 using Microsoft.Azure.Devices.Provisioning.Service;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SentinelBackend.Application.Dps;
 using SentinelBackend.Application.Interfaces;
 using SentinelBackend.Application.Notifications;
@@ -94,6 +96,14 @@ public static class DependencyInjection
             return ServiceClient.CreateFromConnectionString(connectionString);
         });
         services.AddScoped<IDirectMethodService, DirectMethodService>();
+
+        // Azure Service Bus
+        var serviceBusConnectionString = configuration["ServiceBusConnectionString"];
+        if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
+        {
+            services.AddSingleton(new ServiceBusClient(serviceBusConnectionString));
+            services.AddSingleton<IMessagePublisher, ServiceBusMessagePublisher>();
+        }
 
         return services;
     }

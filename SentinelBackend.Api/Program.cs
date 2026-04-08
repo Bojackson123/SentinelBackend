@@ -64,6 +64,7 @@ builder.Services.AddAuthorizationBuilder()
 
 builder.Services.AddHostedService<CommandExecutorWorker>();
 builder.Services.AddHostedService<OfflineMonitorWorker>();
+builder.Services.AddHostedService<OfflineCheckWorker>();
 builder.Services.AddHostedService<NotificationDispatchWorker>();
 
 // Phase 7 — Retention worker + raw-telemetry archive blob
