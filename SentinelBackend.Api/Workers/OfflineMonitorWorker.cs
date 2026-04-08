@@ -6,8 +6,15 @@ using SentinelBackend.Domain.Enums;
 using SentinelBackend.Infrastructure.Persistence;
 
 /// <summary>
-/// Background service that periodically evaluates device connectivity state
-/// and raises/resolves DeviceOffline alarms.
+/// Safety-net background service for offline detection.
+///
+/// When Service Bus is configured, the primary offline detection is event-driven
+/// via OfflineCheckWorker. This worker runs on a longer interval (default 10 min)
+/// as a sweep to catch any devices the event-driven path might have missed.
+///
+/// Optimized to only query devices that actually need state changes:
+///   - Devices that exceeded their threshold but aren't yet marked offline
+///   - Devices marked offline whose telemetry has since resumed
 ///
 /// Rules (from design doc §13.3):
 ///   - Default offline threshold is 3× the expected telemetry interval (OfflineThresholdSeconds)
@@ -31,8 +38,8 @@ public class OfflineMonitorWorker : BackgroundService
         _logger = logger;
 
         var scanIntervalSeconds =
-            configuration.GetValue<int?>("OfflineMonitor:ScanIntervalSeconds") ?? 60;
-        if (scanIntervalSeconds <= 0) scanIntervalSeconds = 60;
+            configuration.GetValue<int?>("OfflineMonitor:ScanIntervalSeconds") ?? 600;
+        if (scanIntervalSeconds <= 0) scanIntervalSeconds = 600;
         _scanInterval = TimeSpan.FromSeconds(scanIntervalSeconds);
     }
 
@@ -63,7 +70,7 @@ public class OfflineMonitorWorker : BackgroundService
         _logger.LogInformation("OfflineMonitorWorker stopped");
     }
 
-    private async Task ScanConnectivityAsync(CancellationToken stoppingToken)
+    internal async Task ScanConnectivityAsync(CancellationToken stoppingToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<SentinelDbContext>();
@@ -71,12 +78,20 @@ public class OfflineMonitorWorker : BackgroundService
 
         var now = DateTime.UtcNow;
 
-        // Load all connectivity states for active (non-decommissioned) devices
-        // Include the active assignment chain to resolve site/company for maintenance windows
+        // Only query devices that need a state change:
+        //   1. Online but over threshold → need to mark offline
+        //   2. Offline but under threshold → need to mark online (telemetry resumed)
+        // This avoids loading the entire fleet on every scan.
         var connectivityStates = await db.DeviceConnectivityStates
             .Include(c => c.Device)
                 .ThenInclude(d => d.Assignments.Where(a => a.UnassignedAt == null))
             .Where(c => c.Device.Status == DeviceStatus.Active)
+            .Where(c =>
+                // Case 1: Not marked offline, but last message is older than threshold
+                (!c.IsOffline && EF.Functions.DateDiffSecond(c.LastMessageReceivedAt, now) > c.OfflineThresholdSeconds)
+                ||
+                // Case 2: Marked offline, but last message is within threshold (came back)
+                (c.IsOffline && EF.Functions.DateDiffSecond(c.LastMessageReceivedAt, now) <= c.OfflineThresholdSeconds))
             .ToListAsync(stoppingToken);
 
         // Load active maintenance windows

@@ -13,6 +13,7 @@ This folder documents the current state of the Sentinel IoT backend as implement
 | [Telemetry Ingestion](telemetry-ingestion.md) | Event Hubs consumer, processing rules, and data flow |
 | [Testing](testing.md) | Test infrastructure, test inventory, and patterns used |
 | [Simulator](simulator.md) | Blazor Server app for visual testing with mock devices |
+| [Next Steps](next-steps.md) | Roadmap for CI/CD, deployment, observability, and hardening |
 
 ## Phase Status
 
@@ -26,4 +27,4 @@ This folder documents the current state of the Sentinel IoT backend as implement
 | 5 | Alarming Foundation | Complete |
 | 6 | Notifications & Escalation | Scaffolding complete |
 | 7 | Archive, Retention, Query Optimization | Scaffolding complete |
-| 8 | Production Hardening | Not started |
+| 8 | Production Hardening | Service Bus migration, offline detection, simulator rewrite complete |

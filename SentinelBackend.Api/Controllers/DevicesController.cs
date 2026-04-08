@@ -260,6 +260,7 @@ public class DevicesController : ControllerBase
     public async Task<IActionResult> SubmitCommand(
         string deviceId,
         string commandType,
+        [FromServices] IMessagePublisher? messagePublisher,
         CancellationToken cancellationToken)
     {
         if (!ValidCommandTypes.Contains(commandType))
@@ -290,6 +291,14 @@ public class DevicesController : ControllerBase
 
         _db.CommandLogs.Add(command);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (messagePublisher is not null)
+        {
+            await messagePublisher.PublishAsync(
+                Api.Workers.CommandExecutorWorker.QueueName,
+                new Api.Workers.CommandMessage(command.Id),
+                cancellationToken: cancellationToken);
+        }
 
         return AcceptedAtAction(
             nameof(GetCommand),

@@ -1,8 +1,10 @@
 using Azure.Identity;
 using Azure.Messaging.EventHubs;
+using Azure.Messaging.ServiceBus;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
 using SentinelBackend.Application.Interfaces;
+using SentinelBackend.Application.Notifications;
 using SentinelBackend.Infrastructure;
 using SentinelBackend.Infrastructure.Persistence;
 using SentinelBackend.Ingestion;
@@ -47,6 +49,18 @@ builder.Services.AddDbContext<SentinelDbContext>(options =>
 
 builder.Services.AddScoped<IAlarmService, AlarmService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Bind notification options so NotificationService can resolve TestEmailRecipient / TestSmsRecipient
+builder.Services.Configure<NotificationOptions>(
+    builder.Configuration.GetSection(NotificationOptions.SectionName));
+
+// Azure Service Bus (optional — enables event-driven offline detection)
+var serviceBusConnectionString = builder.Configuration["ServiceBusConnectionString"];
+if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
+{
+    builder.Services.AddSingleton(new ServiceBusClient(serviceBusConnectionString));
+    builder.Services.AddSingleton<IMessagePublisher, ServiceBusMessagePublisher>();
+}
 
 builder.Services.AddHostedService<TelemetryIngestionWorker>();
 

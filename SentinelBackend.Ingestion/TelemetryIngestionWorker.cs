@@ -16,7 +16,10 @@ public class TelemetryIngestionWorker : BackgroundService
     private readonly EventProcessorClient _processor;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IBlobArchiveService _archiveService;
+    private readonly IMessagePublisher? _messagePublisher;
     private readonly ILogger<TelemetryIngestionWorker> _logger;
+
+    public const string OfflineCheckQueue = "offline-checks";
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -27,12 +30,14 @@ public class TelemetryIngestionWorker : BackgroundService
         EventProcessorClient processor,
         IServiceScopeFactory scopeFactory,
         IBlobArchiveService archiveService,
-        ILogger<TelemetryIngestionWorker> logger)
+        ILogger<TelemetryIngestionWorker> logger,
+        IMessagePublisher? messagePublisher = null)
     {
         _processor = processor;
         _scopeFactory = scopeFactory;
         _archiveService = archiveService;
         _logger = logger;
+        _messagePublisher = messagePublisher;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -243,8 +248,49 @@ public class TelemetryIngestionWorker : BackgroundService
         {
             connectivity.LastTelemetryReceivedAt = receivedAtUtc;
         }
+        var wasOffline = connectivity.IsOffline;
         connectivity.IsOffline = false;
         connectivity.UpdatedAt = receivedAtUtc;
+
+        // ── Schedule offline-check deadline via Service Bus ──────
+        // If Service Bus is configured, schedule a message that will fire after
+        // the device's offline threshold. The OfflineCheckWorker will verify
+        // whether newer telemetry arrived and raise a DeviceOffline alarm if not.
+        if (_messagePublisher is not null && connectivity.OfflineThresholdSeconds > 0)
+        {
+            var deadline = receivedAtUtc.AddSeconds(connectivity.OfflineThresholdSeconds);
+            try
+            {
+                await _messagePublisher.PublishAsync(
+                    OfflineCheckQueue,
+                    new OfflineCheckMessage(device.Id, receivedAtUtc),
+                    new DateTimeOffset(deadline, TimeSpan.Zero));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to schedule offline-check for device {DeviceId}", deviceId);
+            }
+        }
+
+        // ── Auto-resolve DeviceOffline alarm on telemetry arrival ─
+        // The device just sent something — if it was previously offline, resolve the alarm.
+        if (wasOffline)
+        {
+            try
+            {
+                var alarmSvc = scope.ServiceProvider.GetRequiredService<IAlarmService>();
+                await alarmSvc.AutoResolveAlarmsAsync(
+                    device.Id,
+                    "DeviceOffline",
+                    "Auto-resolved: device telemetry resumed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to auto-resolve DeviceOffline alarm for device {DeviceId}",
+                    deviceId);
+            }
+        }
 
         // ── First-telemetry activation transition ────────────────
         if (device.Status == DeviceStatus.Assigned && messageType == "telemetry")
@@ -355,3 +401,5 @@ public class TelemetryIngestionWorker : BackgroundService
         return Task.CompletedTask;
     }
 }
+
+public record OfflineCheckMessage(int DeviceId, DateTime ExpectedAfter);
