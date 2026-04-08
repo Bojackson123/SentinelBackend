@@ -86,6 +86,11 @@ public class AuthController : ControllerBase
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
+        if (!string.IsNullOrEmpty(user.FirstName))
+            claims.Add(new Claim(ClaimTypes.GivenName, user.FirstName));
+        if (!string.IsNullOrEmpty(user.LastName))
+            claims.Add(new Claim(ClaimTypes.Surname, user.LastName));
+
         if (user.CompanyId.HasValue)
             claims.Add(new Claim("companyId", user.CompanyId.Value.ToString()));
         if (user.CustomerId.HasValue)
