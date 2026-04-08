@@ -21,6 +21,48 @@ public class SitesController : ControllerBase
         _tenant = tenant;
     }
 
+    /// <summary>GET /api/sites — tenant-scoped site list</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetSites(
+        [FromQuery] int? companyId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize is < 1 or > 100) pageSize = 25;
+
+        var query = _tenant.ApplyScope(
+            _db.Sites.AsNoTracking().Include(s => s.Customer));
+
+        if (companyId.HasValue && _tenant.IsInternal)
+            query = query.Where(s => s.Customer.CompanyId == companyId.Value);
+
+        var total = await query.CountAsync(cancellationToken);
+        var sites = await query
+            .OrderBy(s => s.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(s => new
+            {
+                s.Id,
+                s.CustomerId,
+                s.Name,
+                s.AddressLine1,
+                s.City,
+                s.State,
+                s.PostalCode,
+                s.Country,
+                s.Timezone,
+                s.CreatedAt,
+                CustomerName = s.Customer.FirstName + " " + s.Customer.LastName,
+                DeviceCount = s.DeviceAssignments.Count(da => da.UnassignedAt == null),
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new { total, page, pageSize, sites });
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateSite(
         [FromBody] CreateSiteRequest request,
@@ -86,6 +128,49 @@ public class SitesController : ControllerBase
             site.Timezone,
             site.CreatedAt,
         });
+    }
+
+    /// <summary>GET /api/sites/{siteId}/devices — devices assigned to this site</summary>
+    [HttpGet("{siteId:int}/devices")]
+    public async Task<IActionResult> GetSiteDevices(
+        int siteId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize is < 1 or > 100) pageSize = 25;
+
+        var site = await _tenant.ApplyScope(
+                _db.Sites.AsNoTracking())
+            .FirstOrDefaultAsync(s => s.Id == siteId, cancellationToken);
+
+        if (site is null)
+            return NotFound();
+
+        var query = _db.DeviceAssignments.AsNoTracking()
+            .Where(da => da.SiteId == siteId && da.UnassignedAt == null)
+            .Select(da => da.Device);
+
+        var total = await query.CountAsync(cancellationToken);
+        var devices = await query
+            .OrderByDescending(d => d.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(d => new
+            {
+                d.Id,
+                d.DeviceId,
+                d.SerialNumber,
+                d.HardwareRevision,
+                d.FirmwareVersion,
+                Status = d.Status.ToString(),
+                d.ProvisionedAt,
+                d.CreatedAt,
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new { total, page, pageSize, devices });
     }
 }
 
