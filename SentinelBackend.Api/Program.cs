@@ -67,6 +67,20 @@ builder.Services.AddHostedService<OfflineMonitorWorker>();
 builder.Services.AddHostedService<OfflineCheckWorker>();
 builder.Services.AddHostedService<NotificationDispatchWorker>();
 
+// CORS — allow frontend dev server
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        var origins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
+            ?? ["http://localhost:5173"];
+        policy.WithOrigins(origins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // Phase 7 — Retention worker + raw-telemetry archive blob
 builder.Services.Configure<RetentionOptions>(builder.Configuration.GetSection(RetentionOptions.SectionName));
 builder.Services.AddHostedService<TelemetryRetentionWorker>();
@@ -91,6 +105,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
