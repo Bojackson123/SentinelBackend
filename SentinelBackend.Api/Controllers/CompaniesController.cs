@@ -3,6 +3,8 @@ namespace SentinelBackend.Api.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SentinelBackend.Domain.Entities;
+using SentinelBackend.Domain.Enums;
 using SentinelBackend.Infrastructure.Persistence;
 
 [ApiController]
@@ -85,4 +87,40 @@ public class CompaniesController : ControllerBase
 
         return Ok(company);
     }
+
+    /// <summary>POST /api/companies — create a new company (internal only)</summary>
+    [HttpPost]
+    public async Task<IActionResult> CreateCompany(
+        [FromBody] CreateCompanyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var company = new Company
+        {
+            Name = request.Name,
+            ContactEmail = request.ContactEmail,
+            ContactPhone = request.ContactPhone,
+            BillingEmail = request.BillingEmail,
+            FocalPointName = request.FocalPointName,
+            SubscriptionStatus = Enum.Parse<SubscriptionStatus>(request.SubscriptionStatus ?? "Trialing", ignoreCase: true),
+            IsInternal = request.IsInternal,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+        _db.Companies.Add(company);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return CreatedAtAction(nameof(GetCompany), new { companyId = company.Id }, new { company.Id, company.Name });
+    }
+}
+
+public class CreateCompanyRequest
+{
+    public string Name { get; set; } = default!;
+    public string ContactEmail { get; set; } = default!;
+    public string? ContactPhone { get; set; }
+    public string BillingEmail { get; set; } = default!;
+    public string? FocalPointName { get; set; }
+    public string? SubscriptionStatus { get; set; }
+    public bool IsInternal { get; set; }
 }

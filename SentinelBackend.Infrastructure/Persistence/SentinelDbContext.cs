@@ -43,6 +43,7 @@ public class SentinelDbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.ContactPhone).HasMaxLength(32);
             e.Property(c => c.StripeCustomerId).HasMaxLength(256);
             e.Property(c => c.SubscriptionStatus).HasConversion<string>();
+            e.Property(c => c.IsInternal).HasDefaultValue(false);
             e.HasQueryFilter(c => !c.IsDeleted);
         });
 
