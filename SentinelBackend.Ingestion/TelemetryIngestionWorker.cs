@@ -59,6 +59,12 @@ public class TelemetryIngestionWorker : BackgroundService
 
     private async Task HandleEventAsync(ProcessEventArgs args)
     {
+        // MaximumWaitTime can cause empty dispatches — skip if no event data
+        if (!args.HasEvent)
+        {
+            return;
+        }
+
         var json = Encoding.UTF8.GetString(args.Data.EventBody);
         var partitionId = args.Partition.PartitionId;
         var offset = args.Data.OffsetString;
@@ -143,6 +149,28 @@ public class TelemetryIngestionWorker : BackgroundService
             .Include(d => d.LatestState)
             .Include(d => d.ConnectivityState)
             .FirstOrDefaultAsync(d => d.DeviceId == deviceId);
+
+        // Fallback: DPS uses SerialNumber as IoT Hub device identity.
+        // If DeviceId hasn't been set yet (no custom allocation webhook),
+        // match by SerialNumber and backfill DeviceId.
+        if (device is null)
+        {
+            device = await db.Devices
+                .IgnoreQueryFilters()
+                .Include(d => d.LatestState)
+                .Include(d => d.ConnectivityState)
+                .FirstOrDefaultAsync(d => d.SerialNumber == deviceId);
+
+            if (device is not null)
+            {
+                device.DeviceId = deviceId;
+                device.ProvisionedAt ??= DateTime.UtcNow;
+                device.UpdatedAt = DateTime.UtcNow;
+                _logger.LogInformation(
+                    "Auto-linked device {SerialNumber} to DeviceId {DeviceId}",
+                    device.SerialNumber, deviceId);
+            }
+        }
 
         if (device is null)
         {

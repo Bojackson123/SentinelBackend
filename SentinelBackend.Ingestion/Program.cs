@@ -26,7 +26,13 @@ var blobClient = new BlobContainerClient(
 var processor = new EventProcessorClient(
     blobClient,
     "$Default",
-    builder.Configuration["IoTHubEventHubConnectionString"]);
+    builder.Configuration["IoTHubEventHubConnectionString"],
+    new EventProcessorClientOptions
+    {
+        MaximumWaitTime = TimeSpan.FromSeconds(5),
+        PrefetchCount = 10,
+        CacheEventCount = 10,
+    });
 
 builder.Services.AddSingleton(processor);
 
