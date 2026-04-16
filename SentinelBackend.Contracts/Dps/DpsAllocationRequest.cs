@@ -3,7 +3,7 @@ namespace SentinelBackend.Contracts.Dps;
 
 public class DpsAllocationRequest
 {
-    public string RegistrationId { get; set; } = default!;
+    public string? RegistrationId { get; set; }
     public DeviceRuntimeContext DeviceRuntimeContext { get; set; } = default!;
     public IEnumerable<string> LinkedHubs { get; set; } = [];
 }

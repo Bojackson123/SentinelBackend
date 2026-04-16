@@ -47,8 +47,11 @@ public class DpsWebhookController : ControllerBase
 
         try
         {
+            var registrationId = request.DeviceRuntimeContext?.RegistrationId
+                ?? request.RegistrationId;
+
             var response = await _allocationService.AllocateAsync(
-                request.RegistrationId,
+                registrationId,
                 request.LinkedHubs,
                 cancellationToken
             );
@@ -74,11 +77,19 @@ public class DpsWebhookController : ControllerBase
         // depending on how you configured the webhook URL in the portal.
         // Using a query param here: ?code=<secret>
         if (!Request.Query.TryGetValue("code", out var code))
+        {
+            _logger.LogWarning("DPS webhook: no 'code' query parameter found. Query: {Query}", Request.QueryString);
             return false;
+        }
+
+        var received = code.ToString();
+        var expected = _options.WebhookSecret;
+        _logger.LogInformation("DPS webhook: received code length={ReceivedLen}, expected length={ExpectedLen}, match={Match}",
+            received.Length, expected.Length, string.Equals(received, expected, StringComparison.Ordinal));
 
         return string.Equals(
-            code.ToString(),
-            _options.WebhookSecret,
+            received,
+            expected,
             StringComparison.Ordinal
         );
     }
